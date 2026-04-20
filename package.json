@@ -10,7 +10,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.12",
-    "vite": "^8.0.4"
+    "vite": "^8.0.4",
+    "vitest": "^4.1.4"
   },
   "peerDependencies": {
     "apache-arrow": "^21.1.0",
