@@ -1,5 +1,4 @@
 import yaml from 'js-yaml';
-import { fileSystemFromUriOrPath } from './filesystem.js';
 import { InfoVersion } from './info-version.js';
 import {
   adjListTypeToString,
@@ -229,6 +228,7 @@ class EdgeInfo {
   }
 
   async getEdgeNum(prefix, adjListType, vertexChunkIndex) {
+    const { fileSystemFromUriOrPath } = await import('./filesystem.js');
     const [fs, outPrefix] = fileSystemFromUriOrPath(prefix);
     const edgeNumFileSuffix = this.getEdgesNumFilePath(
       vertexChunkIndex,
@@ -354,6 +354,7 @@ class GraphInfo {
 
   static async load({ path, input, _relativeLocation }) {
     if (path) {
+      const { fileSystemFromUriOrPath } = await import('./filesystem.js');
       const [fs, noUrlPath] = fileSystemFromUriOrPath(path);
       const input = await fs.readFileAsText(noUrlPath);
       const graphMeta = yaml.load(input);
@@ -387,4 +388,4 @@ class GraphInfo {
   }
 }
 
-export { EdgeInfo, GraphInfo, VertexInfo };
+export { AdjacentList, EdgeInfo, GraphInfo, PropertyGroup, VertexInfo };
