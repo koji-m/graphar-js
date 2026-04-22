@@ -279,11 +279,29 @@ class EdgeInfo {
     return `${this.prefix}${adjList.prefix}${propertyGroup.prefix}`;
   }
 
+  getPropertyFilePath(
+    propertyGroup,
+    adjListType,
+    vertexChunkIndex,
+    edgeChunkIndex,
+  ) {
+    const propertyGroupPathPrefix = this.getPropertyGroupPathPrefix(
+      propertyGroup,
+      adjListType,
+    );
+    return `${propertyGroupPathPrefix}part${vertexChunkIndex}/chunk${edgeChunkIndex}`;
+  }
+
   getOffsetPathPrefix(adjListType) {
     const adjList = this.adjacentList.find(
       (adjList) => adjList.type === adjListType,
     );
     return `${this.prefix}${adjList.prefix}offset/`;
+  }
+
+  getAdjListOffsetFilePath(vertexChunkIndex, adjListType) {
+    const offsetPathPrefix = this.getOffsetPathPrefix(adjListType);
+    return `${offsetPathPrefix}chunk${vertexChunkIndex}`;
   }
 }
 
