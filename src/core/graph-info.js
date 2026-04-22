@@ -76,7 +76,7 @@ class VertexInfo {
       const properties = [];
       for (const propertyMeta of propertyGroupMeta.properties ?? []) {
         const name = propertyMeta.name;
-        const type = DataType.typeNametoDataType(propertyMeta.data_type);
+        const type = DataType.typeNameToDataType(propertyMeta.data_type);
         const isPrimary = propertyMeta.is_primary ?? false;
         const isNullable = propertyMeta.is_nullable ?? true;
         const cardinality = propertyMeta.cardinality ?? 'single';
@@ -170,7 +170,7 @@ class EdgeInfo {
           const properties = propertyGroupMeta.properties
             ? propertyGroupMeta.properties.map((propertyMeta) => {
                 const name = propertyMeta.name;
-                const type = DataType.typeNametoDataType(
+                const type = DataType.typeNameToDataType(
                   propertyMeta.data_type,
                 );
                 const isPrimary = propertyMeta.is_primary ?? false;

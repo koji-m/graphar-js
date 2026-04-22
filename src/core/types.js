@@ -18,6 +18,33 @@ class DataType {
     Object.assign(this, { id, child, userDefinedTypeName });
   }
 
+  toTypeName() {
+    switch (this.id) {
+      case Type.BOOL:
+        return 'bool';
+      case Type.INT32:
+        return 'int32';
+      case Type.INT64:
+        return 'int64';
+      case Type.FLOAT:
+        return 'float';
+      case Type.DOUBLE:
+        return 'double';
+      case Type.STRING:
+        return 'string';
+      case Type.LIST:
+        return `list<${this.child.toTypeName()}>`;
+      case Type.DATE:
+        return 'date';
+      case Type.TIMESTAMP:
+        return 'timestamp';
+      case Type.USER_DEFINED:
+        return this.userDefinedTypeName;
+      default:
+        return 'unknown';
+    }
+  }
+
   static dataTypeToArrowDataType(type) {
     switch (type.id) {
       case Type.BOOL:
@@ -52,7 +79,7 @@ class DataType {
     }
   }
 
-  static typeNametoDataType(typeStr) {
+  static typeNameToDataType(typeStr) {
     switch (typeStr) {
       case 'bool':
         return new DataType({ id: Type.BOOL });
@@ -67,25 +94,36 @@ class DataType {
       case 'string':
         return new DataType({ id: Type.STRING });
       case 'list<int32>':
-        return new DataType({ id: Type.LIST, child: Type.INT32 });
+        return new DataType({
+          id: Type.LIST,
+          child: DataType.typeNameToDataType('int32'),
+        });
       case 'list<int64>':
-        return new DataType({ id: Type.LIST, child: Type.INT64 });
+        return new DataType({
+          id: Type.LIST,
+          child: DataType.typeNameToDataType('int64'),
+        });
       case 'list<float>':
-        return new DataType({ id: Type.LIST, child: Type.FLOAT });
+        return new DataType({
+          id: Type.LIST,
+          child: DataType.typeNameToDataType('float'),
+        });
       case 'list<double>':
-        return new DataType({ id: Type.LIST, child: Type.DOUBLE });
+        return new DataType({
+          id: Type.LIST,
+          child: DataType.typeNameToDataType('double'),
+        });
       case 'list<string>':
-        return new DataType({ id: Type.LIST, child: Type.STRING });
+        return new DataType({
+          id: Type.LIST,
+          child: DataType.typeNameToDataType('string'),
+        });
       case 'date':
         return new DataType({ id: Type.DATE });
       case 'timestamp':
         return new DataType({ id: Type.TIMESTAMP });
-      case Type.USER_DEFINED:
-        throw new Error(
-          'User defined type is not supported in this implementation',
-        );
       default:
-        throw new Error(`Unsupported data type id: ${type.id}`);
+        throw new Error(`Unsupported data type ${typeStr}`);
     }
   }
 }
