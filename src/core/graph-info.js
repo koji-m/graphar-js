@@ -337,7 +337,12 @@ class GraphInfo {
     const prefix = graphMeta.prefix ?? defaultPrefix;
     const version = InfoVersion.parse(graphMeta.version);
 
-    // TODO: Load extra_info
+    const extraInfo = {};
+    if (Array.isArray(graphMeta.extra_info)) {
+      for (const extraInfoMeta of graphMeta.extra_info) {
+        extraInfo[extraInfoMeta.key] = extraInfoMeta.value;
+      }
+    }
 
     const vertexInfos = Array.isArray(graphMeta.vertices)
       ? await (async () =>
@@ -367,10 +372,18 @@ class GraphInfo {
 
     const labels = Array.isArray(graphMeta.labels) ? graphMeta.labels : [];
 
-    return new GraphInfo(name, vertexInfos, edgeInfos, labels, prefix, version);
+    return new GraphInfo(
+      name,
+      vertexInfos,
+      edgeInfos,
+      labels,
+      prefix,
+      version,
+      extraInfo,
+    );
   }
 
-  static async load({ path, input, _relativeLocation }) {
+  static async load({ path, input, relativeLocation }) {
     if (path) {
       const { fileSystemFromUriOrPath } = await import('./filesystem.js');
       const [fs, noUrlPath] = fileSystemFromUriOrPath(path);
@@ -388,7 +401,18 @@ class GraphInfo {
       );
     }
     if (input) {
-      // TODO
+      const { fileSystemFromUriOrPath } = await import('./filesystem.js');
+      const graphMeta = yaml.load(input);
+      const defaultName = 'graph';
+      const defaultPrefix = relativeLocation;
+      const [fs, noUrlPath] = fileSystemFromUriOrPath(relativeLocation);
+      return await GraphInfo.constructGraphInfo(
+        graphMeta,
+        defaultName,
+        defaultPrefix,
+        fs,
+        noUrlPath,
+      );
     }
   }
 
