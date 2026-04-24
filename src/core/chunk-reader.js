@@ -446,6 +446,7 @@ class AdjListOffsetArrowChunkReader {
     prefix,
     baseDir,
     vertexChunkNum,
+    vertexChunkSize,
     chunkIndex,
     seekId,
     chunkTable,
@@ -457,6 +458,7 @@ class AdjListOffsetArrowChunkReader {
       prefix,
       baseDir,
       vertexChunkNum,
+      vertexChunkSize,
       chunkIndex,
       seekId,
       chunkTable,
@@ -482,6 +484,10 @@ class AdjListOffsetArrowChunkReader {
         `Invalid adjacent list type ${adjListType} to construct AdjListOffsetArrowChunkReader`,
       );
     }
+    const vertexChunkSize =
+      adjListType === AdjListType.ORDERED_BY_SOURCE
+        ? edgeInfo.srcChunkSize
+        : edgeInfo.dstChunkSize;
 
     return new AdjListOffsetArrowChunkReader({
       edgeInfo,
@@ -490,10 +496,70 @@ class AdjListOffsetArrowChunkReader {
       prefix: noUrlPath,
       baseDir,
       vertexChunkNum,
+      vertexChunkSize,
       chunkIndex: 0,
       seekId: 0,
       chunkTable: null,
     });
+  }
+
+  async seek(id) {
+    const seekId = typeof id === 'bigint' ? id : BigInt(id);
+    this.seekId = seekId;
+    const preChunkIndex = this.chunkIndex;
+    this.chunkIndex = Number(seekId / BigInt(this.vertexChunkSize));
+    if (this.chunkIndex !== preChunkIndex) {
+      this.chunkTable = null;
+    }
+    if (BigInt(this.chunkIndex) >= BigInt(this.vertexChunkNum)) {
+      return {
+        ok: false,
+        error: {
+          code: 'IndexError',
+          message: `Internal vertex id ${seekId} is out of range [0, ${BigInt(this.vertexChunkNum) * BigInt(this.vertexChunkSize)}), of edge ${this.edgeInfo.edgeType} of adj list type ${adjListTypeToString(this.adjListType)}.`,
+        },
+      };
+    }
+    return { ok: true };
+  }
+
+  async getChunk() {
+    if (this.chunkTable === null) {
+      const chunkFilePath = this.edgeInfo.getAdjListOffsetFilePath(
+        this.chunkIndex,
+        this.adjListType,
+      );
+      const path = this.prefix + chunkFilePath;
+      const fileType = this.edgeInfo.getAdjacentList(this.adjListType).fileType;
+      this.chunkTable = await this.fs.readFileAsTable(path, fileType);
+    }
+    const rowOffset =
+      this.seekId - BigInt(this.chunkIndex) * BigInt(this.vertexChunkSize);
+    const slicedTable = this.chunkTable.slice(Number(rowOffset));
+    const offsetColumn =
+      slicedTable.getChildAt?.(0) ?? slicedTable.batches[0]?.getChildAt(0);
+    if (!offsetColumn) {
+      throw new Error(
+        `Offset column not found for edge ${this.edgeInfo.edgeType} of adj list type ${adjListTypeToString(this.adjListType)}.`,
+      );
+    }
+    return offsetColumn;
+  }
+
+  async nextChunk() {
+    this.chunkIndex++;
+    if (BigInt(this.chunkIndex) >= this.vertexChunkNum) {
+      return {
+        ok: false,
+        error: {
+          code: 'IndexError',
+          message: `vertex chunk index ${this.chunkIndex} is out-of-bounds for vertex chunk num ${this.vertexChunkNum} of edge ${this.edgeInfo.edgeType} of adj list type ${adjListTypeToString(this.adjListType)}.`,
+        },
+      };
+    }
+    this.seekId = BigInt(this.chunkIndex) * BigInt(this.vertexChunkSize);
+    this.chunkTable = null;
+    return { ok: true };
   }
 }
 
