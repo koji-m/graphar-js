@@ -459,8 +459,7 @@ class AdjListPropertyArrowChunkReader {
       edgeInfo,
       adjListType,
     );
-    // TODO
-    // const schema = propertyGroupToSchema(propertyGroup, false);
+    const schema = propertyGroupToSchema(propertyGroup, false);
 
     return new AdjListPropertyArrowChunkReader({
       edgeInfo,
@@ -471,9 +470,10 @@ class AdjListPropertyArrowChunkReader {
       pgPathPrefix,
       baseDir,
       vertexChunkNum,
+      chunkIndex: 0,
       vertexChunkIndex: 0,
       seekOffset: 0,
-      schema: null,
+      schema,
       chunkTable: null,
       filterOptions: options,
       chunkNum: -1,
@@ -501,10 +501,154 @@ class AdjListPropertyArrowChunkReader {
     );
   }
 
+  async seekSrc(id) {
+    if (
+      this.adjListType !== AdjListType.UNORDERED_BY_SOURCE &&
+      this.adjListType !== AdjListType.ORDERED_BY_SOURCE
+    ) {
+      return {
+        ok: false,
+        error: {
+          code: 'Invalid',
+          message: `The seekSrc operation is invalid in edge ${this.edgeInfo.edgeType} reader with ${adjListTypeToString(this.adjListType)} type.`,
+        },
+      };
+    }
+
+    const seekId = typeof id === 'bigint' ? id : BigInt(id);
+    const newVertexChunkIndex = Number(
+      seekId / BigInt(this.edgeInfo.srcChunkSize),
+    );
+    if (BigInt(newVertexChunkIndex) >= this.vertexChunkNum) {
+      return {
+        ok: false,
+        error: {
+          code: 'IndexError',
+          message: `The source internal id ${seekId} is out of range [0, ${BigInt(this.edgeInfo.srcChunkSize) * this.vertexChunkNum}) of edge ${this.edgeInfo.edgeType} reader.`,
+        },
+      };
+    }
+    if (this.chunkNum < 0 || this.vertexChunkIndex !== newVertexChunkIndex) {
+      this.vertexChunkIndex = newVertexChunkIndex;
+      await this.initOrUpdateEdgeChunkNum();
+      this.chunkTable = null;
+    }
+
+    if (this.adjListType === AdjListType.UNORDERED_BY_SOURCE) {
+      return await this.seek(0);
+    }
+    const [beginOffset] = await getAdjListOffsetOfVertex(
+      this.prefix,
+      this.edgeInfo,
+      this.adjListType,
+      seekId,
+    );
+    return await this.seek(beginOffset);
+  }
+
+  async seekDst(id) {
+    if (
+      this.adjListType !== AdjListType.UNORDERED_BY_DEST &&
+      this.adjListType !== AdjListType.ORDERED_BY_DEST
+    ) {
+      return {
+        ok: false,
+        error: {
+          code: 'Invalid',
+          message: `The seekDst operation is invalid in edge ${this.edgeInfo.edgeType} reader with ${adjListTypeToString(this.adjListType)} type.`,
+        },
+      };
+    }
+
+    const seekId = typeof id === 'bigint' ? id : BigInt(id);
+    const newVertexChunkIndex = Number(
+      seekId / BigInt(this.edgeInfo.dstChunkSize),
+    );
+    if (BigInt(newVertexChunkIndex) >= this.vertexChunkNum) {
+      return {
+        ok: false,
+        error: {
+          code: 'IndexError',
+          message: `The destination internal id ${seekId} is out of range [0, ${BigInt(this.edgeInfo.dstChunkSize) * this.vertexChunkNum}) of edge ${this.edgeInfo.edgeType} reader.`,
+        },
+      };
+    }
+    if (this.chunkNum < 0 || this.vertexChunkIndex !== newVertexChunkIndex) {
+      this.vertexChunkIndex = newVertexChunkIndex;
+      await this.initOrUpdateEdgeChunkNum();
+      this.chunkTable = null;
+    }
+
+    if (this.adjListType === AdjListType.UNORDERED_BY_DEST) {
+      return await this.seek(0);
+    }
+    const [beginOffset] = await getAdjListOffsetOfVertex(
+      this.prefix,
+      this.edgeInfo,
+      this.adjListType,
+      seekId,
+    );
+    return await this.seek(beginOffset);
+  }
+
+  async seek(offset) {
+    const seekOffset = typeof offset === 'bigint' ? offset : BigInt(offset);
+    const preChunkIndex = this.chunkIndex;
+    this.seekOffset = seekOffset;
+    this.chunkIndex = Number(seekOffset / BigInt(this.edgeInfo.chunkSize));
+    if (this.chunkIndex !== preChunkIndex) {
+      this.chunkTable = null;
+    }
+    if (this.chunkNum < 0) {
+      await this.initOrUpdateEdgeChunkNum();
+    }
+    if (BigInt(this.chunkIndex) >= this.chunkNum) {
+      return {
+        ok: false,
+        error: {
+          code: 'IndexError',
+          message: `The edge offset ${seekOffset} is out of range [0, ${BigInt(this.edgeInfo.chunkSize) * this.chunkNum}), edge type: ${this.edgeInfo.edgeType}`,
+        },
+      };
+    }
+    return { ok: true };
+  }
+
+  async getChunk() {
+    if (this.chunkTable === null) {
+      const edgeNum = await getEdgeNum(
+        this.prefix,
+        this.edgeInfo,
+        this.adjListType,
+        this.vertexChunkIndex,
+      );
+      if (edgeNum === 0n) {
+        return null;
+      }
+      const chunkFilePath = this.edgeInfo.getPropertyFilePath(
+        this.propertyGroup,
+        this.adjListType,
+        this.vertexChunkIndex,
+        this.chunkIndex,
+      );
+      const path = this.prefix + chunkFilePath;
+      this.chunkTable = await this.fs.readFileAsTable(
+        path,
+        this.propertyGroup.fileType,
+      );
+      if (this.schema !== null && this.filterOptions.filter === null) {
+        this.chunkTable = castTableWithSchema(this.chunkTable, this.schema);
+      }
+    }
+    const rowOffset =
+      this.seekOffset - BigInt(this.chunkIndex) * BigInt(this.edgeInfo.chunkSize);
+    return this.chunkTable.slice(Number(rowOffset));
+  }
+
   async nextChunk() {
     this.chunkIndex++;
     if (this.chunkNum < 0) {
-      this.initOrUpdateEdgeChunkNum();
+      await this.initOrUpdateEdgeChunkNum();
     }
     while (this.chunkIndex >= this.chunkNum) {
       this.vertexChunkIndex++;
@@ -518,9 +662,9 @@ class AdjListPropertyArrowChunkReader {
         };
       }
       this.chunkIndex = 0;
-      this.initOrUpdateEdgeChunkNum();
+      await this.initOrUpdateEdgeChunkNum();
     }
-    this.seekOffset = this.chunkIndex * this.edgeInfo.chunkSize;
+    this.seekOffset = BigInt(this.chunkIndex) * BigInt(this.edgeInfo.chunkSize);
     this.chunkTable = null;
     return { ok: true };
   }
