@@ -425,7 +425,7 @@ class OBDEdgesCollection extends EdgesCollection {
         prefix,
         vertexChunkBegin,
         vertexChunkEnd,
-        AdjListType.ORDERED_BY_SOURCE,
+        AdjListType.ORDERED_BY_DEST,
       );
     return new OBDEdgesCollection(
       edgeInfo,
@@ -447,7 +447,7 @@ class UBSEdgesCollection extends EdgesCollection {
         prefix,
         vertexChunkBegin,
         vertexChunkEnd,
-        AdjListType.ORDERED_BY_SOURCE,
+        AdjListType.UNORDERED_BY_SOURCE,
       );
     return new UBSEdgesCollection(
       edgeInfo,
@@ -469,7 +469,7 @@ class UBDEdgesCollection extends EdgesCollection {
         prefix,
         vertexChunkBegin,
         vertexChunkEnd,
-        AdjListType.ORDERED_BY_SOURCE,
+        AdjListType.UNORDERED_BY_DEST,
       );
     return new UBDEdgesCollection(
       edgeInfo,
