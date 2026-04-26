@@ -341,7 +341,6 @@ class AdjListArrowChunkReader {
 
   async getChunk() {
     if (this.chunkTable === null) {
-      console.log('this.vertexChunkIndex:', this.vertexChunkIndex);
       const edgeNum = await getEdgeNum(
         this.prefix,
         this.edgeInfo,
