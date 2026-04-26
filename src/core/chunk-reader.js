@@ -217,7 +217,7 @@ class AdjListArrowChunkReader {
     }
     if (this.chunkIndex !== chunkIndex) {
       this.chunkIndex = chunkIndex;
-      this.seekOffset = chunkIndex * this.edgeInfo.chunkSize;
+      this.seekOffset = BigInt(chunkIndex) * BigInt(this.edgeInfo.chunkSize);
       this.chunkTable = null;
     }
   }
@@ -386,7 +386,7 @@ class AdjListArrowChunkReader {
       this.chunkIndex = 0;
       await this.initOrUpdateEdgeChunkNum();
     }
-    this.seekOffset = this.chunkIndex * this.edgeInfo.chunkSize;
+    this.seekOffset = BigInt(this.chunkIndex) * BigInt(this.edgeInfo.chunkSize);
     this.chunkTable = null;
     return { ok: true };
   }
@@ -488,7 +488,7 @@ class AdjListPropertyArrowChunkReader {
     }
     if (this.chunkIndex !== chunkIndex) {
       this.chunkIndex = chunkIndex;
-      this.seekOffset = chunkIndex * this.edgeInfo.chunkSize;
+      this.seekOffset = BigInt(chunkIndex) * BigInt(this.edgeInfo.chunkSize);
       this.chunkTable = null;
     }
   }

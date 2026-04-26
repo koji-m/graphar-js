@@ -155,14 +155,14 @@ class EdgeIter {
       adjListType,
       prefix,
     });
-    const curOffset = offset;
+    const curOffset = typeof offset === 'bigint' ? offset : BigInt(offset);
     const chunkSize = edgeInfo.chunkSize;
     const srcChunkSize = edgeInfo.srcChunkSize;
     const dstChunkSize = edgeInfo.dstChunkSize;
     const numRowOfChunk = 0;
-    const [vertexChunkIndex, _] =
+    const [vertexChunkIndex, edgeChunkIndex] =
       indexConverter.globalChunkIndexToIndexPair(globalChunkIndex);
-    await adjListReader.seekChunkIndex(vertexChunkIndex);
+    await adjListReader.seekChunkIndex(vertexChunkIndex, Number(edgeChunkIndex));
     const promisePropertyReaders = edgeInfo.propertyGroups.map(
       async (propertyGroup) => {
         const propertyReader = await AdjListPropertyArrowChunkReader.create({
@@ -171,7 +171,10 @@ class EdgeIter {
           adjListType,
           prefix,
         });
-        propertyReader.seekChunkIndex(vertexChunkIndex);
+        await propertyReader.seekChunkIndex(
+          vertexChunkIndex,
+          Number(edgeChunkIndex),
+        );
         return propertyReader;
       },
     );
@@ -208,6 +211,61 @@ class EdgeIter {
     });
   }
 
+  syncChunkStateFromAdjListReader() {
+    this.vertexChunkIndex = this.adjListReader.vertexChunkIndex;
+  }
+
+  async moveToNextChunk() {
+    const result = await this.adjListReader.nextChunk();
+    this.globalChunkIndex += 1n;
+    if (result.error?.code === 'IndexError') {
+      return false;
+    }
+    for (const reader of this.propertyReaders) {
+      await reader.nextChunk();
+    }
+    this.syncChunkStateFromAdjListReader();
+    this.numRowOfChunk = await this.adjListReader.getRowNumOfChunk();
+    this.curOffset = this.adjListReader.seekOffset;
+    return true;
+  }
+
+  async advance() {
+    if (this.numRowOfChunk === 0) {
+      await this.adjListReader.seek(this.curOffset);
+      this.numRowOfChunk = await this.adjListReader.getRowNumOfChunk();
+    }
+
+    const nextOffset = this.curOffset + 1n;
+    const seekResult = await this.adjListReader.seek(nextOffset);
+    if (!seekResult.ok) {
+      return await this.moveToNextChunk();
+    }
+
+    if (this.numRowOfChunk !== this.chunkSize) {
+      const rowOffset = nextOffset % BigInt(this.chunkSize);
+      if (rowOffset >= BigInt(this.numRowOfChunk)) {
+        return await this.moveToNextChunk();
+      }
+    }
+
+    this.curOffset = nextOffset;
+
+    if (
+      this.numRowOfChunk === this.chunkSize &&
+      this.curOffset % BigInt(this.chunkSize) === 0n
+    ) {
+      this.globalChunkIndex += 1n;
+      for (const reader of this.propertyReaders) {
+        await reader.nextChunk();
+      }
+      this.syncChunkStateFromAdjListReader();
+      this.numRowOfChunk = await this.adjListReader.getRowNumOfChunk();
+    }
+
+    return true;
+  }
+
   async source() {
     await this.adjListReader.seek(this.curOffset);
     const chunk = await this.adjListReader.getChunk();
@@ -228,44 +286,11 @@ class EdgeIter {
         await this.adjListReader.seek(this.curOffset);
         this.numRowOfChunk = await this.adjListReader.getRowNumOfChunk();
       }
-      let r = await this.adjListReader.seek(this.curOffset);
-      if (r.ok && this.numRowOfChunk !== this.chunkSize) {
-        const rowOffset = this.curOffset % this.chunkSize;
-        if (rowOffset >= this.numRowOfChunk) {
-          this.curOffset =
-            (this.curOffset / this.chunkSize + 1) * this.chunkSize;
-          await this.adjListReader.seek(this.curOffset);
-          r = { ok: false, error: { code: 'KeyError' } };
-        }
-      }
-      if (
-        r.ok &&
-        this.numRowOfChunk === this.chunkSize &&
-        this.curOffset % this.chunkSize === 0
-      ) {
-        this.numRowOfChunk = await this.adjListReader.getRowNumOfChunk();
-        this.globalChunkIndex++;
-        for (const reader of this.propertyReaders) {
-          await reader.nextChunk();
-        }
-      }
-      if (r.error?.code === 'KeyError') {
-        r = await this.adjListReader.nextChunk();
-        this.globalChunkIndex++;
-        this.vertexChunkIndex++;
-        if (!r.error?.code === 'IndexError') {
-          this.numRowOfChunk = await this.adjListReader.getRowNumOfChunk();
-          for (const reader of this.propertyReaders) {
-            await reader.nextChunk();
-          }
-        } else {
-          break;
-        }
-        this.curOffset = 0;
-        await this.adjListReader.seek(this.curOffset);
-      }
       yield this;
-      this.curOffset++;
+      const hasNext = await this.advance();
+      if (!hasNext) {
+        break;
+      }
     }
   }
 }
