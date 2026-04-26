@@ -7,7 +7,14 @@
     <title>graphar-js</title>
   </head>
   <body>
-    <input id="open" type="button" value="Open GraphInfo" />
+    <label for="graph-info-path">Graph Info URL</label>
+    <input
+      id="graph-info-path"
+      type="text"
+      spellcheck="false"
+      style="width: min(960px, 100%)"
+    />
+    <input id="open" type="button" value="Load Example" />
     <pre id="app"></pre>
     <script type="module" src="/demo/main.js"></script>
   </body>
