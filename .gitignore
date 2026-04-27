@@ -25,3 +25,6 @@ dist-ssr
 
 # Coding agent files
 .codex
+
+# External references
+_ref
