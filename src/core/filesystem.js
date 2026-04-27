@@ -1,5 +1,5 @@
 import * as arrow from 'apache-arrow';
-import initWasm, { readParquet } from 'parquet-wasm';
+import initWasm, { readParquet } from 'parquet-wasm/esm';
 import { HttpClient } from './http-client.js';
 
 class FileSystem {

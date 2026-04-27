@@ -25,6 +25,20 @@ function pathToDirectory(path) {
   }
 }
 
+function isHttpUrl(path) {
+  return path.startsWith('http://') || path.startsWith('https://');
+}
+
+function resolveGraphPrefix(prefix, defaultPrefix) {
+  if (prefix === undefined || prefix === null) {
+    return defaultPrefix;
+  }
+  if (isHttpUrl(prefix) || !isHttpUrl(defaultPrefix)) {
+    return prefix;
+  }
+  return new URL(prefix, defaultPrefix).href;
+}
+
 class Property {
   constructor({ name, type, isPrimary, isNullable, cardinality }) {
     Object.assign(this, { name, type, isPrimary, cardinality });
@@ -392,8 +406,12 @@ class GraphInfo {
       const defaultName = 'graph';
       const defaultPrefix = pathToDirectory(path);
       const noUrlPathPrefix = pathToDirectory(noUrlPath);
+      const resolvedGraphMeta = {
+        ...graphMeta,
+        prefix: resolveGraphPrefix(graphMeta.prefix, defaultPrefix),
+      };
       return await GraphInfo.constructGraphInfo(
-        graphMeta,
+        resolvedGraphMeta,
         defaultName,
         defaultPrefix,
         fs,
@@ -406,8 +424,12 @@ class GraphInfo {
       const defaultName = 'graph';
       const defaultPrefix = relativeLocation;
       const [fs, noUrlPath] = fileSystemFromUriOrPath(relativeLocation);
+      const resolvedGraphMeta = {
+        ...graphMeta,
+        prefix: resolveGraphPrefix(graphMeta.prefix, defaultPrefix),
+      };
       return await GraphInfo.constructGraphInfo(
-        graphMeta,
+        resolvedGraphMeta,
         defaultName,
         defaultPrefix,
         fs,

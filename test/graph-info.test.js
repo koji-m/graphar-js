@@ -113,9 +113,7 @@ describe('GraphInfo', () => {
     const vertexInfo = graphInfo.getVertexInfo('person');
     expect(vertexInfo.type).toBe('person');
     expect(vertexInfo.chunkSize).toBe(100);
-    expect(vertexInfo.propertyGroups[0].properties[0].type.id).toBe(
-      Type.INT64,
-    );
+    expect(vertexInfo.propertyGroups[0].properties[0].type.id).toBe(Type.INT64);
 
     const edgeInfo = graphInfo.getEdgeInfo('person', 'knows', 'person');
     expect(edgeInfo.edgeType).toBe('knows');
@@ -155,9 +153,11 @@ describe('GraphInfo', () => {
     });
 
     expect(graphInfo.graphName).toBe('ldbc_sample');
-    expect(graphInfo.prefix).toBe('./');
+    expect(graphInfo.prefix).toBe('http://example.test/graphs/');
     expect(graphInfo.getVertexInfo('person')).not.toBeUndefined();
-    expect(graphInfo.getEdgeInfo('person', 'knows', 'person')).not.toBeUndefined();
+    expect(
+      graphInfo.getEdgeInfo('person', 'knows', 'person'),
+    ).not.toBeUndefined();
     expect(fs.readFileAsText).toHaveBeenCalledWith(
       'http://example.test/graphs/person.vertex.yml',
     );
