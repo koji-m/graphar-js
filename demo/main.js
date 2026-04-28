@@ -55,7 +55,7 @@ async function readExampleGraph(graphInfoPath) {
   let vertexCount = 0;
   for (const vertex of vertexIterator) {
     vertexLines.push(
-      `id=${await vertex.property('id')}, firstName=${await vertex.property('firstName')}, lastName=${await vertex.property('lastName')}, gender=${await vertex.property('gender')}`,
+      `id=${await vertex.property('id')}, firstName=${await vertex.property('firstName')}`,
     );
     vertexCount += 1;
     if (vertexCount >= 3) {
@@ -74,7 +74,9 @@ async function readExampleGraph(graphInfoPath) {
   const edgeLines = [];
   let edgeCount = 0;
   for await (const edge of edgeIterator) {
-    edgeLines.push(`src=${await edge.source()}, dst=${await edge.destination()}`);
+    edgeLines.push(
+      `src=${await edge.source()}, dst=${await edge.destination()}`,
+    );
     edgeCount += 1;
     if (edgeCount >= 5) {
       break;
@@ -117,7 +119,8 @@ openButton.addEventListener('click', async () => {
   try {
     outputElement.textContent = await readExampleGraph(graphInfoPath);
   } catch (error) {
-    outputElement.textContent = error instanceof Error ? error.stack : String(error);
+    outputElement.textContent =
+      error instanceof Error ? error.stack : String(error);
   } finally {
     openButton.disabled = false;
   }
