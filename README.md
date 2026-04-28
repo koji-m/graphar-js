@@ -13,7 +13,13 @@ At this point, the library can:
 - load GraphAr graph, vertex, and edge metadata from YAML files
 - read vertex property chunks
 - read edge topology chunks
-- iterate edges for supported adjacency list layouts
+- iterate edges for the four GraphAr adjacency list layouts:
+  `ordered_by_source`, `ordered_by_dest`, `unordered_by_source`, and
+  `unordered_by_dest`
+
+The current integration fixture lives under
+[`test/fixtures/graphar-minimal`](./test/fixtures/graphar-minimal). It is a
+small Parquet-backed GraphAr graph used by tests and by the current demo.
 
 ## Current Example
 
@@ -45,7 +51,6 @@ for (const vertex of vertexIterator) {
   console.log(
     await vertex.property('id'),
     await vertex.property('firstName'),
-    await vertex.property('lastName'),
   );
   break;
 }
@@ -72,12 +77,22 @@ For a runnable example, see [demo/main.js](./demo/main.js).
 The implementation is not ready for npm publish yet. The main current
 constraints are:
 
-- only `http://` and `https://` graph locations are supported by the current
-  `FileSystem` implementation
-- payload reading is effectively Parquet-only right now
-- the reader path is browser-oriented and depends on `parquet-wasm`
-- the public API is still being stabilized while the port progresses
-- the implementation is still being validated against the upstream C++ logic
+- Graph info and payload files must be read through `http://` or `https://`.
+  Local filesystem paths and absolute paths such as `/tmp/graph/...` are not
+  supported by the current `FileSystem` implementation.
+- Payload reading is Parquet-only. Metadata may mention other file types, but
+  the reader path currently always uses `parquet-wasm`.
+- The reader path is browser-oriented and depends on `parquet-wasm`; Node-based
+  checks need explicit WASM initialization.
+- Vertex property reads are available through `vertex.property(...)`, but
+  filter and projection support is incomplete.
+- Edge iteration currently exposes topology through `edge.source()` and
+  `edge.destination()`. Edge property access is not part of the stabilized
+  public API yet.
+- Label metadata is parsed, but label payload reading and label-based filtering
+  are not implemented yet.
+- The public API is still being stabilized while the port progresses and is
+  still being validated against the upstream C++ logic.
 
 ## Local Demo
 
@@ -93,8 +108,15 @@ Start the demo:
 npm run dev
 ```
 
-The demo page lets you enter a GraphAr graph info URL and inspect a small sample
-of the loaded graph.
+The demo page lets you enter a GraphAr graph info URL and inspect a small
+sample of the loaded graph. The default URL is:
+
+```text
+http://localhost:9000/my-bucket/parquet/ldbc_sample.graph.yml
+```
+
+To use the repository fixture with that URL, serve
+`test/fixtures/graphar-minimal` at `http://localhost:9000/my-bucket/`.
 
 ## Peer Dependencies
 
