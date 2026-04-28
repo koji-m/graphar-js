@@ -280,6 +280,22 @@ class EdgeIter {
     return dstColumn.get(0);
   }
 
+  async property(property) {
+    let arrowArray = null;
+    for (const reader of this.propertyReaders) {
+      await reader.seek(this.curOffset);
+      const chunkTable = await reader.getChunk();
+      arrowArray = chunkTable?.batches[0]?.getChild(property) ?? null;
+      if (arrowArray) {
+        break;
+      }
+    }
+    if (arrowArray) {
+      return arrowArray.get(0);
+    }
+    throw new Error(`Edge property ${property} not found in edge info.`);
+  }
+
   async *[Symbol.asyncIterator]() {
     while (this.globalChunkIndex < this.chunkEnd) {
       if (this.numRowOfChunk === 0) {

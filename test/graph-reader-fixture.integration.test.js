@@ -57,6 +57,19 @@ async function collectEdges(collection) {
   return edges;
 }
 
+async function collectEdgesWithProperties(collection) {
+  const iterator = await collection.getIterator();
+  const edges = [];
+  for await (const edge of iterator) {
+    edges.push({
+      src: await edge.source(),
+      dst: await edge.destination(),
+      creationDate: await edge.property('creationDate'),
+    });
+  }
+  return edges;
+}
+
 describe('Graph reader minimal fixture integration', () => {
   const fixtureBaseUrl = 'http://fixture.test/';
   let graphInfo;
@@ -125,45 +138,45 @@ describe('Graph reader minimal fixture integration', () => {
     [
       AdjListType.ORDERED_BY_SOURCE,
       [
-        [0n, 1n],
-        [0n, 2n],
-        [1n, 3n],
-        [2n, 0n],
-        [3n, 4n],
-        [4n, 0n],
+        { src: 0n, dst: 1n, creationDate: '2020-01-01' },
+        { src: 0n, dst: 2n, creationDate: '2020-01-02' },
+        { src: 1n, dst: 3n, creationDate: '2020-01-03' },
+        { src: 2n, dst: 0n, creationDate: '2020-01-04' },
+        { src: 3n, dst: 4n, creationDate: '2020-01-05' },
+        { src: 4n, dst: 0n, creationDate: '2020-01-06' },
       ],
     ],
     [
       AdjListType.ORDERED_BY_DEST,
       [
-        [2n, 0n],
-        [4n, 0n],
-        [0n, 1n],
-        [0n, 2n],
-        [1n, 3n],
-        [3n, 4n],
+        { src: 2n, dst: 0n, creationDate: '2020-01-04' },
+        { src: 4n, dst: 0n, creationDate: '2020-01-06' },
+        { src: 0n, dst: 1n, creationDate: '2020-01-01' },
+        { src: 0n, dst: 2n, creationDate: '2020-01-02' },
+        { src: 1n, dst: 3n, creationDate: '2020-01-03' },
+        { src: 3n, dst: 4n, creationDate: '2020-01-05' },
       ],
     ],
     [
       AdjListType.UNORDERED_BY_SOURCE,
       [
-        [0n, 1n],
-        [1n, 3n],
-        [0n, 2n],
-        [3n, 4n],
-        [2n, 0n],
-        [4n, 0n],
+        { src: 0n, dst: 1n, creationDate: '2020-01-01' },
+        { src: 1n, dst: 3n, creationDate: '2020-01-03' },
+        { src: 0n, dst: 2n, creationDate: '2020-01-02' },
+        { src: 3n, dst: 4n, creationDate: '2020-01-05' },
+        { src: 2n, dst: 0n, creationDate: '2020-01-04' },
+        { src: 4n, dst: 0n, creationDate: '2020-01-06' },
       ],
     ],
     [
       AdjListType.UNORDERED_BY_DEST,
       [
-        [4n, 0n],
-        [0n, 1n],
-        [2n, 0n],
-        [1n, 3n],
-        [0n, 2n],
-        [3n, 4n],
+        { src: 4n, dst: 0n, creationDate: '2020-01-06' },
+        { src: 0n, dst: 1n, creationDate: '2020-01-01' },
+        { src: 2n, dst: 0n, creationDate: '2020-01-04' },
+        { src: 1n, dst: 3n, creationDate: '2020-01-03' },
+        { src: 0n, dst: 2n, creationDate: '2020-01-02' },
+        { src: 3n, dst: 4n, creationDate: '2020-01-05' },
       ],
     ],
   ])('iterates %s edges from real adjacency chunks', async (adjListType, expected) => {
@@ -177,6 +190,27 @@ describe('Graph reader minimal fixture integration', () => {
 
     expect(edges.edgeNum).toBe(6n);
     expect(edges.indexConverter.edgeChunkNums).toEqual([2n, 1n, 1n]);
-    expect(await collectEdges(edges)).toEqual(expected);
+    expect(await collectEdges(edges)).toEqual(
+      expected.map(({ src, dst }) => [src, dst]),
+    );
+    expect(await collectEdgesWithProperties(edges)).toEqual(expected);
+  });
+
+  it('rejects unknown edge properties', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.ORDERED_BY_SOURCE,
+    );
+
+    const iterator = await edges.getIterator();
+    for await (const edge of iterator) {
+      await expect(edge.property('missingProperty')).rejects.toThrow(
+        /Edge property missingProperty not found in edge info/,
+      );
+      break;
+    }
   });
 });
