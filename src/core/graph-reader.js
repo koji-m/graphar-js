@@ -4,6 +4,7 @@ import {
   AdjListPropertyArrowChunkReader,
   VertexPropertyArrowChunkReader,
 } from './chunk-reader.js';
+import { evaluateFilterExpression } from './filter.js';
 import { fileSystemFromUriOrPath } from './filesystem.js';
 import { getVertexChunkNumFromEdge } from './reader-util.js';
 import { AdjListType } from './types.js';
@@ -91,8 +92,8 @@ class Vertex {
 }
 
 class VertexIter {
-  constructor(vertex, vertexNum) {
-    Object.assign(this, { vertex, vertexNum });
+  constructor(vertex, vertexNum, filteredIds = null) {
+    Object.assign(this, { vertex, vertexNum, filteredIds });
   }
 
   [Symbol.iterator]() {
@@ -100,6 +101,17 @@ class VertexIter {
     const that = this;
     return {
       next() {
+        if (that.filteredIds) {
+          if (curOffset >= that.filteredIds.length) {
+            return { done: true };
+          }
+          that.vertex.curOffset = that.filteredIds[curOffset++];
+          return {
+            value: that.vertex,
+            done: false,
+          };
+        }
+
         that.vertex.curOffset = curOffset++;
         if (that.vertex.curOffset < that.vertexNum) {
           return {
@@ -114,8 +126,8 @@ class VertexIter {
 }
 
 class VerticesCollection {
-  constructor(vertexInfo, fs, prefix, vertexNum) {
-    Object.assign(this, { vertexInfo, fs, prefix, vertexNum });
+  constructor(vertexInfo, fs, prefix, vertexNum, filteredIds = null) {
+    Object.assign(this, { vertexInfo, fs, prefix, vertexNum, filteredIds });
   }
 
   static async init(vertexInfo, prefix) {
@@ -135,13 +147,106 @@ class VerticesCollection {
     return await VerticesCollection.init(vertexInfo, graphInfo.prefix);
   }
 
+  static async resolveSource(graphInfoOrCollection, type) {
+    if (graphInfoOrCollection instanceof VerticesCollection) {
+      return graphInfoOrCollection;
+    }
+    return await VerticesCollection.make(graphInfoOrCollection, type);
+  }
+
+  static async verticesWithLabel(
+    filterLabel,
+    graphInfoOrCollection,
+    type = undefined,
+  ) {
+    return await VerticesCollection.verticesWithMultipleLabels(
+      [filterLabel],
+      graphInfoOrCollection,
+      type,
+    );
+  }
+
+  static async verticesWithMultipleLabels(
+    filterLabels,
+    graphInfoOrCollection,
+    type = undefined,
+  ) {
+    const vertices = await VerticesCollection.resolveSource(
+      graphInfoOrCollection,
+      type,
+    );
+    for (const label of filterLabels) {
+      if (!vertices.vertexInfo.labels.includes(label)) {
+        throw new Error(`Vertex label ${label} not found in vertex info.`);
+      }
+    }
+
+    const iterator = await vertices.getIterator();
+    const filteredIds = [];
+    for (const vertex of iterator) {
+      let matched = true;
+      for (const label of filterLabels) {
+        if (!(await vertex.hasLabel(label))) {
+          matched = false;
+          break;
+        }
+      }
+      if (matched) {
+        filteredIds.push(vertex.curOffset);
+      }
+    }
+    return vertices.withFilteredIds(filteredIds);
+  }
+
+  static async verticesWithProperty(
+    propertyName,
+    filter,
+    graphInfoOrCollection,
+    type = undefined,
+  ) {
+    const vertices = await VerticesCollection.resolveSource(
+      graphInfoOrCollection,
+      type,
+    );
+    const propertyExists = vertices.vertexInfo.propertyGroups.some((group) =>
+      group.properties.some((property) => property.name === propertyName),
+    );
+    if (!propertyExists) {
+      throw new Error(`Vertex property ${propertyName} not found in vertex info.`);
+    }
+
+    const iterator = await vertices.getIterator();
+    const filteredIds = [];
+    for (const vertex of iterator) {
+      const propertyValue = await vertex.property(propertyName);
+      if (
+        evaluateFilterExpression(filter, {
+          [propertyName]: propertyValue,
+        })
+      ) {
+        filteredIds.push(vertex.curOffset);
+      }
+    }
+    return vertices.withFilteredIds(filteredIds);
+  }
+
+  withFilteredIds(filteredIds) {
+    return new VerticesCollection(
+      this.vertexInfo,
+      this.fs,
+      this.prefix,
+      this.vertexNum,
+      filteredIds,
+    );
+  }
+
   async getIterator() {
     const vertex = await Vertex.create({
       vertexInfo: this.vertexInfo,
       prefix: this.prefix,
       offset: 0,
     });
-    return new VertexIter(vertex, this.vertexNum);
+    return new VertexIter(vertex, this.vertexNum, this.filteredIds);
   }
 }
 

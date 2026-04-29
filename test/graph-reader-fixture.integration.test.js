@@ -184,6 +184,51 @@ describe('Graph reader minimal fixture integration', () => {
     ]);
   });
 
+  it('filters vertices by label and property', async () => {
+    const activeVertices = await VerticesCollection.verticesWithLabel(
+      'active',
+      graphInfo,
+      'person',
+    );
+    const activeIterator = await activeVertices.getIterator();
+    const activeIds = [];
+    for (const vertex of activeIterator) {
+      activeIds.push(await vertex.property('id'));
+    }
+
+    const contractorVertices =
+      await VerticesCollection.verticesWithMultipleLabels(
+        ['active', 'contractor'],
+        graphInfo,
+        'person',
+      );
+    const contractorIterator = await contractorVertices.getIterator();
+    const contractorIds = [];
+    for (const vertex of contractorIterator) {
+      contractorIds.push(await vertex.property('id'));
+    }
+
+    const namedVertices = await VerticesCollection.verticesWithProperty(
+      'firstName',
+      {
+        op: 'eq',
+        column: 'firstName',
+        value: 'Dan',
+      },
+      graphInfo,
+      'person',
+    );
+    const namedIterator = await namedVertices.getIterator();
+    const namedIds = [];
+    for (const vertex of namedIterator) {
+      namedIds.push(await vertex.property('id'));
+    }
+
+    expect(activeIds).toEqual([100n, 101n, 103n]);
+    expect(contractorIds).toEqual([103n]);
+    expect(namedIds).toEqual([103n]);
+  });
+
   it.each([
     [
       AdjListType.ORDERED_BY_SOURCE,

@@ -14,6 +14,7 @@ At this point, the library can:
 - read vertex property chunks
 - read vertex label chunks
 - read edge topology chunks
+- apply projection/filter on property chunk readers
 - iterate edges for the four GraphAr adjacency list layouts:
   `ordered_by_source`, `ordered_by_dest`, `unordered_by_source`, and
   `unordered_by_dest`
@@ -85,13 +86,19 @@ constraints are:
   the reader path currently always uses `parquet-wasm`.
 - The reader path is browser-oriented and depends on `parquet-wasm`; Node-based
   checks need explicit WASM initialization.
-- Vertex property reads are available through `vertex.property(...)`, but
-  filter and projection support is incomplete.
+- Vertex property reads are available through `vertex.property(...)`.
 - Vertex label reads are available through `vertex.label()` and
-  `vertex.hasLabel(...)`, but label-based filtering is not implemented yet.
+  `vertex.hasLabel(...)`.
+- Property projection/filter is implemented on vertex and edge property chunk
+  readers. Vertex collection filtering is available through
+  `VerticesCollection.verticesWithLabel(...)`,
+  `verticesWithMultipleLabels(...)`, and `verticesWithProperty(...)`.
 - Edge iteration currently exposes topology through `edge.source()` and
   `edge.destination()`. Edge property access is not part of the stabilized
   public API yet.
+- Row filters are evaluated in JavaScript after Parquet decode because the
+  current `parquet-wasm` path does not expose the C++ reader's filter pushdown
+  API.
 - The public API is still being stabilized while the port progresses and is
   still being validated against the upstream C++ logic.
 

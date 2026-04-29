@@ -1,5 +1,6 @@
 import * as arrow from 'apache-arrow';
 import { fileSystemFromUriOrPath } from './filesystem.js';
+import { applyFilterToTable, prepareReadOptions } from './filter.js';
 import GENERAL_PARAMS from './general-params.js';
 import {
   getAdjListOffsetOfVertex,
@@ -31,6 +32,13 @@ function propertyGroupToSchema(propertyGroup, containIndexColumn = false) {
 function castTableWithSchema(table, _schema) {
   // TODO
   return table;
+}
+
+async function readTableWithColumns(fs, path, fileType, columns) {
+  if (columns === undefined) {
+    return await fs.readFileAsTable(path, fileType);
+  }
+  return await fs.readFileAsTable(path, fileType, columns);
 }
 
 class VertexPropertyArrowChunkReader {
@@ -98,12 +106,13 @@ class VertexPropertyArrowChunkReader {
   }
 
   seek(id) {
-    this.seekId = id;
+    const seekId = typeof id === 'bigint' ? id : BigInt(id);
+    this.seekId = seekId;
     const preChunkIndex = this.chunkIndex;
-    this.chunkIndex = Math.floor(id / this.vertexInfo.chunkSize);
+    this.chunkIndex = Number(seekId / BigInt(this.vertexInfo.chunkSize));
     if (this.chunkIndex >= this.chunkNum) {
       throw new Error(
-        `Internal vertex id ${id} is out of range: [0, ${this.chunkNum * BigInt(this.vertexInfo.chunkSize)})`,
+        `Internal vertex id ${seekId} is out of range: [0, ${this.chunkNum * BigInt(this.vertexInfo.chunkSize)})`,
       );
     }
     if (this.chunkIndex !== preChunkIndex) {
@@ -117,38 +126,33 @@ class VertexPropertyArrowChunkReader {
         this.propertyGroup,
         this.chunkIndex,
       );
-      const columns = [];
-      let propertyNames = [];
-      if (!this.filterOptions.columns && this.propertyNames.length > 0) {
-        propertyNames = this.propertyNames;
-      } else {
-        if (propertyNames.length > 0) {
-          for (const col of this.filterOptions.columns) {
-            if (!this.propertyNames.includes(col)) {
-              throw new Error(`Column ${col} is not in property group`);
-            }
-            propertyNames.push(col);
-          }
-        }
-      }
-      for (const col of propertyNames) {
-        if (!this.schema.fields.find((f) => f.name === col)) {
-          throw new Error(`Column ${col} not found in schema`);
-        }
-        columns.push(col);
-      }
+      const { readColumns, projectionColumns } = prepareReadOptions({
+        schema: this.schema,
+        propertyNames: this.propertyNames,
+        selectedColumns: this.filterOptions.columns ?? null,
+        filter: this.filterOptions.filter ?? null,
+      });
       const path = this.prefix + chunkFilePath;
-      this.chunkTable = await this.fs.readFileAsTable(
+      this.chunkTable = await readTableWithColumns(
+        this.fs,
         path,
         this.propertyGroup.fileType,
-        columns,
+        readColumns,
       );
-      if (this.schema !== null && this.filterOptions.filter === null) {
+      this.chunkTable = applyFilterToTable(
+        this.chunkTable,
+        this.filterOptions.filter ?? null,
+      );
+      if (projectionColumns !== null) {
+        this.chunkTable = this.chunkTable.select(projectionColumns);
+      }
+      if (this.schema !== null && this.filterOptions.filter == null) {
         this.chunkTable = castTableWithSchema(this.chunkTable, this.schema);
       }
     }
-    const rowOffset = this.seekId - this.chunkIndex * this.vertexInfo.chunkSize;
-    return this.chunkTable.slice(rowOffset);
+    const rowOffset =
+      this.seekId - BigInt(this.chunkIndex) * BigInt(this.vertexInfo.chunkSize);
+    return this.chunkTable.slice(Number(rowOffset));
   }
 
   async getChunk() {
@@ -159,10 +163,43 @@ class VertexPropertyArrowChunkReader {
     if (this.chunkTable === null) {
       const chunkFilePath = this.vertexInfo.getLabelFilePath(this.chunkIndex);
       const path = this.prefix + chunkFilePath;
-      this.chunkTable = await this.fs.readFileAsTable(path, 'parquet');
+      const labelSchema = new arrow.Schema(
+        this.vertexInfo.labels.map(
+          (label) => new arrow.Field(label, new arrow.Bool()),
+        ),
+      );
+      const { readColumns, projectionColumns } = prepareReadOptions({
+        schema: labelSchema,
+        selectedColumns: this.filterOptions.columns ?? null,
+        filter: this.filterOptions.filter ?? null,
+      });
+      this.chunkTable = await readTableWithColumns(
+        this.fs,
+        path,
+        'parquet',
+        readColumns,
+      );
+      this.chunkTable = applyFilterToTable(
+        this.chunkTable,
+        this.filterOptions.filter ?? null,
+      );
+      if (projectionColumns !== null) {
+        this.chunkTable = this.chunkTable.select(projectionColumns);
+      }
     }
-    const rowOffset = this.seekId - this.chunkIndex * this.vertexInfo.chunkSize;
-    return this.chunkTable.slice(rowOffset);
+    const rowOffset =
+      this.seekId - BigInt(this.chunkIndex) * BigInt(this.vertexInfo.chunkSize);
+    return this.chunkTable.slice(Number(rowOffset));
+  }
+
+  filter(filter = null) {
+    this.filterOptions.filter = filter;
+    this.chunkTable = null;
+  }
+
+  select(columnNames = null) {
+    this.filterOptions.columns = columnNames;
+    this.chunkTable = null;
   }
 }
 
@@ -641,11 +678,25 @@ class AdjListPropertyArrowChunkReader {
         this.chunkIndex,
       );
       const path = this.prefix + chunkFilePath;
-      this.chunkTable = await this.fs.readFileAsTable(
+      const { readColumns, projectionColumns } = prepareReadOptions({
+        schema: this.schema,
+        selectedColumns: this.filterOptions.columns ?? null,
+        filter: this.filterOptions.filter ?? null,
+      });
+      this.chunkTable = await readTableWithColumns(
+        this.fs,
         path,
         this.propertyGroup.fileType,
+        readColumns,
       );
-      if (this.schema !== null && this.filterOptions.filter === null) {
+      this.chunkTable = applyFilterToTable(
+        this.chunkTable,
+        this.filterOptions.filter ?? null,
+      );
+      if (projectionColumns !== null) {
+        this.chunkTable = this.chunkTable.select(projectionColumns);
+      }
+      if (this.schema !== null && this.filterOptions.filter == null) {
         this.chunkTable = castTableWithSchema(this.chunkTable, this.schema);
       }
     }
@@ -676,6 +727,16 @@ class AdjListPropertyArrowChunkReader {
     this.seekOffset = BigInt(this.chunkIndex) * BigInt(this.edgeInfo.chunkSize);
     this.chunkTable = null;
     return { ok: true };
+  }
+
+  filter(filter = null) {
+    this.filterOptions.filter = filter;
+    this.chunkTable = null;
+  }
+
+  select(columnNames = null) {
+    this.filterOptions.columns = columnNames;
+    this.chunkTable = null;
   }
 }
 
