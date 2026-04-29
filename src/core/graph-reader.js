@@ -16,6 +16,7 @@ class Vertex {
   }
 
   static async create({ vertexInfo, prefix, offset }) {
+    const curOffset = typeof offset === 'bigint' ? offset : BigInt(offset);
     const promiseReaders = vertexInfo.propertyGroups.map(
       async (propertyGroup) =>
         await VertexPropertyArrowChunkReader.create({
@@ -39,8 +40,12 @@ class Vertex {
       readers,
       labelReader,
       labels: vertexInfo.labels,
-      curOffset: offset,
+      curOffset,
     });
+  }
+
+  id() {
+    return this.curOffset;
   }
 
   async property(property) {
@@ -97,7 +102,7 @@ class VertexIter {
   }
 
   [Symbol.iterator]() {
-    let curOffset = 0;
+    let curOffset = 0n;
     const that = this;
     return {
       next() {
@@ -105,7 +110,7 @@ class VertexIter {
           if (curOffset >= that.filteredIds.length) {
             return { done: true };
           }
-          that.vertex.curOffset = that.filteredIds[curOffset++];
+          that.vertex.curOffset = BigInt(that.filteredIds[Number(curOffset++)]);
           return {
             value: that.vertex,
             done: false,
@@ -238,6 +243,14 @@ class VerticesCollection {
       this.vertexNum,
       filteredIds,
     );
+  }
+
+  async find(id) {
+    return await Vertex.create({
+      vertexInfo: this.vertexInfo,
+      prefix: this.prefix,
+      offset: typeof id === 'bigint' ? id : BigInt(id),
+    });
   }
 
   async getIterator() {

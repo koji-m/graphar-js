@@ -120,6 +120,7 @@ describe('Graph reader minimal fixture integration', () => {
 
     for (const vertex of iterator) {
       rows.push({
+        internalId: vertex.id(),
         id: await vertex.property('id'),
         firstName: await vertex.property('firstName'),
         labels: await vertex.label(),
@@ -128,12 +129,45 @@ describe('Graph reader minimal fixture integration', () => {
 
     expect(vertices.vertexNum).toBe(5n);
     expect(rows).toEqual([
-      { id: 100n, firstName: 'Ann', labels: ['active', 'engineer'] },
-      { id: 101n, firstName: 'Bob', labels: ['active'] },
-      { id: 102n, firstName: 'Cyd', labels: ['contractor'] },
-      { id: 103n, firstName: 'Dan', labels: ['active', 'contractor'] },
-      { id: 104n, firstName: 'Eve', labels: [] },
+      {
+        internalId: 0n,
+        id: 100n,
+        firstName: 'Ann',
+        labels: ['active', 'engineer'],
+      },
+      { internalId: 1n, id: 101n, firstName: 'Bob', labels: ['active'] },
+      { internalId: 2n, id: 102n, firstName: 'Cyd', labels: ['contractor'] },
+      {
+        internalId: 3n,
+        id: 103n,
+        firstName: 'Dan',
+        labels: ['active', 'contractor'],
+      },
+      { internalId: 4n, id: 104n, firstName: 'Eve', labels: [] },
     ]);
+  });
+
+  it('finds vertices by internal id', async () => {
+    const vertices = await VerticesCollection.make(graphInfo, 'person');
+    const vertex = await vertices.find(3);
+
+    expect(vertex.id()).toBe(3n);
+    expect(await vertex.property('id')).toBe(103n);
+    expect(await vertex.property('firstName')).toBe('Dan');
+    expect(await vertex.label()).toEqual(['active', 'contractor']);
+  });
+
+  it('uses internal ids for find on filtered vertex collections', async () => {
+    const activeVertices = await VerticesCollection.verticesWithLabel(
+      'active',
+      graphInfo,
+      'person',
+    );
+    const vertex = await activeVertices.find(4);
+
+    expect(vertex.id()).toBe(4n);
+    expect(await vertex.property('id')).toBe(104n);
+    expect(await vertex.label()).toEqual([]);
   });
 
   it('reads vertex labels from label chunks', async () => {
