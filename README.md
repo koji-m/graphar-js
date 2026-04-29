@@ -12,6 +12,7 @@ At this point, the library can:
 
 - load GraphAr graph, vertex, and edge metadata from YAML files
 - read vertex property chunks
+- read vertex label chunks
 - read edge topology chunks
 - iterate edges for the four GraphAr adjacency list layouts:
   `ordered_by_source`, `ordered_by_dest`, `unordered_by_source`, and
@@ -86,11 +87,11 @@ constraints are:
   checks need explicit WASM initialization.
 - Vertex property reads are available through `vertex.property(...)`, but
   filter and projection support is incomplete.
+- Vertex label reads are available through `vertex.label()` and
+  `vertex.hasLabel(...)`, but label-based filtering is not implemented yet.
 - Edge iteration currently exposes topology through `edge.source()` and
   `edge.destination()`. Edge property access is not part of the stabilized
   public API yet.
-- Label metadata is parsed, but label payload reading and label-based filtering
-  are not implemented yet.
 - The public API is still being stabilized while the port progresses and is
   still being validated against the upstream C++ logic.
 

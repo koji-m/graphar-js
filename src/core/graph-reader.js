@@ -10,8 +10,8 @@ import { AdjListType } from './types.js';
 import { IndexConverter, MAX_INT64 } from './util.js';
 
 class Vertex {
-  constructor({ readers, curOffset }) {
-    Object.assign(this, { readers, curOffset });
+  constructor({ readers, labelReader, labels, curOffset }) {
+    Object.assign(this, { readers, labelReader, labels, curOffset });
   }
 
   static async create({ vertexInfo, prefix, offset }) {
@@ -24,9 +24,22 @@ class Vertex {
         }),
     );
     const readers = await Promise.all(promiseReaders);
+    const labelReader =
+      vertexInfo.labels.length > 0
+        ? await VertexPropertyArrowChunkReader.create({
+            vertexInfo,
+            propertyGroup: vertexInfo.propertyGroups[0],
+            prefix,
+          })
+        : null;
     Vertex.curOffset = offset;
 
-    return new Vertex({ readers, curOffset: offset });
+    return new Vertex({
+      readers,
+      labelReader,
+      labels: vertexInfo.labels,
+      curOffset: offset,
+    });
   }
 
   async property(property) {
@@ -43,6 +56,37 @@ class Vertex {
       return arrowArray.get(0);
     }
     throw new Error(`Vertex property ${property} not found in vertex info.`);
+  }
+
+  async hasLabel(label) {
+    if (!this.labelReader) {
+      throw new Error(`Vertex label ${label} not found in vertex info.`);
+    }
+
+    this.labelReader.seek(this.curOffset);
+    const chunkTable = await this.labelReader.getLabelChunk();
+    const arrowArray = chunkTable.batches[0]?.getChild(label);
+    if (!arrowArray) {
+      throw new Error(`Vertex label ${label} not found in vertex info.`);
+    }
+    return arrowArray.get(0);
+  }
+
+  async label() {
+    if (!this.labelReader || this.labels.length === 0) {
+      return [];
+    }
+
+    this.labelReader.seek(this.curOffset);
+    const chunkTable = await this.labelReader.getLabelChunk();
+    const vertexLabels = [];
+    for (const label of this.labels) {
+      const arrowArray = chunkTable.batches[0]?.getChild(label);
+      if (arrowArray?.get(0)) {
+        vertexLabels.push(label);
+      }
+    }
+    return vertexLabels;
   }
 }
 

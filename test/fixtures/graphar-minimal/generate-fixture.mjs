@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import * as arrow from 'apache-arrow';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import initWasm, {
@@ -12,6 +12,16 @@ import initWasm, {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const outDir = path.join(__dirname, 'parquet');
+const wasmPath = path.join(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  'node_modules',
+  'parquet-wasm',
+  'esm',
+  'parquet_wasm_bg.wasm',
+);
 
 const VERTEX_CHUNK_SIZE = 2;
 const EDGE_CHUNK_SIZE = 2;
@@ -19,12 +29,14 @@ const SRC_CHUNK_SIZE = 2;
 const DST_CHUNK_SIZE = 2;
 
 const vertices = [
-  { internalId: 0n, id: 100n, firstName: 'Ann' },
-  { internalId: 1n, id: 101n, firstName: 'Bob' },
-  { internalId: 2n, id: 102n, firstName: 'Cyd' },
-  { internalId: 3n, id: 103n, firstName: 'Dan' },
-  { internalId: 4n, id: 104n, firstName: 'Eve' },
+  { internalId: 0n, id: 100n, firstName: 'Ann', labels: ['active', 'engineer'] },
+  { internalId: 1n, id: 101n, firstName: 'Bob', labels: ['active'] },
+  { internalId: 2n, id: 102n, firstName: 'Cyd', labels: ['contractor'] },
+  { internalId: 3n, id: 103n, firstName: 'Dan', labels: ['active', 'contractor'] },
+  { internalId: 4n, id: 104n, firstName: 'Eve', labels: [] },
 ];
+
+const vertexLabels = ['active', 'engineer', 'contractor'];
 
 const logicalEdges = [
   { src: 0n, dst: 1n, creationDate: '2020-01-01' },
@@ -150,6 +162,10 @@ version: gar/v1
     `type: person
 chunk_size: ${VERTEX_CHUNK_SIZE}
 prefix: vertex/person/
+labels:
+  - active
+  - engineer
+  - contractor
 property_groups:
   - properties:
       - name: id
@@ -211,6 +227,15 @@ async function writeVertexData() {
       _graphArVertexIndex: int64Vector(rows.map((row) => row.internalId)),
       firstName: stringVector(rows.map((row) => row.firstName)),
     });
+    await writeParquetTable(`vertex/person/labels/chunk${chunkIndex}`, Object.fromEntries(
+      vertexLabels.map((label) => [
+        label,
+        arrow.vectorFromArray(
+          rows.map((row) => row.labels.includes(label)),
+          new arrow.Bool(),
+        ),
+      ]),
+    ));
   }
 }
 
@@ -263,7 +288,7 @@ async function writeAdjListData({
 }
 
 async function main() {
-  await initWasm();
+  await initWasm({ module_or_path: await readFile(wasmPath) });
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
   await writeMetadata();

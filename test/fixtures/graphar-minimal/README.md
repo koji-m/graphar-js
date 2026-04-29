@@ -17,13 +17,13 @@ Graph name: `ldbc_sample`
 
 Vertex type: `person`
 
-| internal id | id  | firstName |
-| ----------- | --- | --------- |
-| 0           | 100 | Ann       |
-| 1           | 101 | Bob       |
-| 2           | 102 | Cyd       |
-| 3           | 103 | Dan       |
-| 4           | 104 | Eve       |
+| internal id | id  | firstName | labels |
+| ----------- | --- | --------- | ------ |
+| 0           | 100 | Ann       | `active;engineer` |
+| 1           | 101 | Bob       | `active` |
+| 2           | 102 | Cyd       | `contractor` |
+| 3           | 103 | Dan       | `active;contractor` |
+| 4           | 104 | Eve       | `` |
 
 Edge triplet: `person` - `knows` - `person`
 
@@ -68,9 +68,16 @@ Vertex property chunks are split by internal vertex id:
 | `vertex/person/firstName/chunk0` | vertex 0..1 | `_graphArVertexIndex`, `firstName` |
 | `vertex/person/firstName/chunk1` | vertex 2..3 | `_graphArVertexIndex`, `firstName` |
 | `vertex/person/firstName/chunk2` | vertex 4 | `_graphArVertexIndex`, `firstName` |
+| `vertex/person/labels/chunk0` | vertex 0..1 | `active`, `engineer`, `contractor` |
+| `vertex/person/labels/chunk1` | vertex 2..3 | `active`, `engineer`, `contractor` |
+| `vertex/person/labels/chunk2` | vertex 4 | `active`, `engineer`, `contractor` |
 
 The `_graphArVertexIndex` column is included because GraphAr stores the internal
 vertex id in vertex payload files.
+
+Label chunks follow the GraphAr C++ writer layout: each possible label from the
+vertex metadata becomes one boolean column, and each row marks whether that
+vertex carries the label.
 
 ## ordered_by_source
 
@@ -161,6 +168,7 @@ order and chunking as the adjacency list files.
 | ------- | ------- |
 | `vertex/<label>/vertex_count` | Number of vertices for the vertex label, encoded as little-endian uint64. |
 | `vertex/<label>/<property-group>/chunkN` | Parquet payload for one vertex property group and one vertex chunk. |
+| `vertex/<label>/labels/chunkN` | Parquet label payload with one boolean column per declared vertex label. |
 | `edge/<src>_<edge>_<dst>/<adj-list>/vertex_count` | Number of vertices in the vertex space used by that adjacency list. |
 | `edge/<src>_<edge>_<dst>/<adj-list>/edge_countN` | Number of edges in vertex chunk partition `N`, encoded as little-endian uint64. |
 | `edge/<src>_<edge>_<dst>/<adj-list>/adj_list/partN/chunkM` | Parquet topology chunk with source and destination internal ids. |

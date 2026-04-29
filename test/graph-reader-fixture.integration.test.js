@@ -94,6 +94,7 @@ describe('Graph reader minimal fixture integration', () => {
 
     const vertexInfo = graphInfo.getVertexInfo('person');
     expect(vertexInfo.chunkSize).toBe(2);
+    expect(vertexInfo.labels).toEqual(['active', 'engineer', 'contractor']);
     expect(vertexInfo.propertyGroups.map((group) => group.prefix)).toEqual([
       'id/',
       'firstName/',
@@ -121,16 +122,65 @@ describe('Graph reader minimal fixture integration', () => {
       rows.push({
         id: await vertex.property('id'),
         firstName: await vertex.property('firstName'),
+        labels: await vertex.label(),
       });
     }
 
     expect(vertices.vertexNum).toBe(5n);
     expect(rows).toEqual([
-      { id: 100n, firstName: 'Ann' },
-      { id: 101n, firstName: 'Bob' },
-      { id: 102n, firstName: 'Cyd' },
-      { id: 103n, firstName: 'Dan' },
-      { id: 104n, firstName: 'Eve' },
+      { id: 100n, firstName: 'Ann', labels: ['active', 'engineer'] },
+      { id: 101n, firstName: 'Bob', labels: ['active'] },
+      { id: 102n, firstName: 'Cyd', labels: ['contractor'] },
+      { id: 103n, firstName: 'Dan', labels: ['active', 'contractor'] },
+      { id: 104n, firstName: 'Eve', labels: [] },
+    ]);
+  });
+
+  it('reads vertex labels from label chunks', async () => {
+    const vertices = await VerticesCollection.make(graphInfo, 'person');
+    const iterator = await vertices.getIterator();
+    const checks = [];
+
+    for (const vertex of iterator) {
+      checks.push({
+        labels: await vertex.label(),
+        hasActive: await vertex.hasLabel('active'),
+        hasEngineer: await vertex.hasLabel('engineer'),
+        hasContractor: await vertex.hasLabel('contractor'),
+      });
+    }
+
+    expect(checks).toEqual([
+      {
+        labels: ['active', 'engineer'],
+        hasActive: true,
+        hasEngineer: true,
+        hasContractor: false,
+      },
+      {
+        labels: ['active'],
+        hasActive: true,
+        hasEngineer: false,
+        hasContractor: false,
+      },
+      {
+        labels: ['contractor'],
+        hasActive: false,
+        hasEngineer: false,
+        hasContractor: true,
+      },
+      {
+        labels: ['active', 'contractor'],
+        hasActive: true,
+        hasEngineer: false,
+        hasContractor: true,
+      },
+      {
+        labels: [],
+        hasActive: false,
+        hasEngineer: false,
+        hasContractor: false,
+      },
     ]);
   });
 

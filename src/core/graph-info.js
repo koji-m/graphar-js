@@ -120,6 +120,10 @@ class VertexInfo {
   getFilePath(propertyGroup, chunkIndex) {
     return `${this.prefix}${propertyGroup.prefix}chunk${chunkIndex}`;
   }
+
+  getLabelFilePath(chunkIndex) {
+    return `${this.prefix}labels/chunk${chunkIndex}`;
+  }
 }
 
 class EdgeInfo {

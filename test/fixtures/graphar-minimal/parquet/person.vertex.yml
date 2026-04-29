@@ -1,6 +1,10 @@
 type: person
 chunk_size: 2
 prefix: vertex/person/
+labels:
+  - active
+  - engineer
+  - contractor
 property_groups:
   - properties:
       - name: id

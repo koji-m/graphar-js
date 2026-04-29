@@ -154,6 +154,16 @@ class VertexPropertyArrowChunkReader {
   async getChunk() {
     return await this.getChunkV2();
   }
+
+  async getLabelChunk() {
+    if (this.chunkTable === null) {
+      const chunkFilePath = this.vertexInfo.getLabelFilePath(this.chunkIndex);
+      const path = this.prefix + chunkFilePath;
+      this.chunkTable = await this.fs.readFileAsTable(path, 'parquet');
+    }
+    const rowOffset = this.seekId - this.chunkIndex * this.vertexInfo.chunkSize;
+    return this.chunkTable.slice(rowOffset);
+  }
 }
 
 class AdjListArrowChunkReader {
