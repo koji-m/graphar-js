@@ -414,4 +414,106 @@ describe('Graph reader minimal fixture integration', () => {
     expect([await seeker.source(), await seeker.destination()]).toEqual([2n, 0n]);
     expect(await seeker.nextDst()).toBe(false);
   });
+
+  it('finds outgoing edges from a given iterator in ordered_by_source collections', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.ORDERED_BY_SOURCE,
+    );
+    const begin = await edges.getIterator();
+    const found = await edges.findSrc(0n, begin);
+
+    expect(found.isEnd()).toBe(false);
+    expect([await found.source(), await found.destination()]).toEqual([0n, 1n]);
+
+    const afterFirst = await found.clone();
+    await afterFirst.advance();
+    const foundAgain = await edges.findSrc(0n, afterFirst);
+    expect(foundAgain.isEnd()).toBe(false);
+    expect([await foundAgain.source(), await foundAgain.destination()]).toEqual([
+      0n,
+      2n,
+    ]);
+
+    const missing = await edges.findSrc(99n, begin);
+    expect(missing.isEnd()).toBe(true);
+  });
+
+  it('finds incoming edges from a given iterator in ordered_by_dest collections', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.ORDERED_BY_DEST,
+    );
+    const begin = await edges.getIterator();
+    const found = await edges.findDst(0n, begin);
+
+    expect(found.isEnd()).toBe(false);
+    expect([await found.source(), await found.destination()]).toEqual([2n, 0n]);
+
+    const afterFirst = await found.clone();
+    await afterFirst.advance();
+    const foundAgain = await edges.findDst(0n, afterFirst);
+    expect(foundAgain.isEnd()).toBe(false);
+    expect([await foundAgain.source(), await foundAgain.destination()]).toEqual([
+      4n,
+      0n,
+    ]);
+
+    const missing = await edges.findDst(99n, begin);
+    expect(missing.isEnd()).toBe(true);
+  });
+
+  it('finds edges by source in unordered_by_source collections', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.UNORDERED_BY_SOURCE,
+    );
+    const begin = await edges.getIterator();
+    const found = await edges.findSrc(0n, begin);
+
+    expect(found.isEnd()).toBe(false);
+    expect([await found.source(), await found.destination()]).toEqual([0n, 1n]);
+
+    const afterFirst = await found.clone();
+    await afterFirst.advance();
+    const foundAgain = await edges.findSrc(0n, afterFirst);
+    expect(foundAgain.isEnd()).toBe(false);
+    expect([await foundAgain.source(), await foundAgain.destination()]).toEqual([
+      0n,
+      2n,
+    ]);
+  });
+
+  it('finds edges by destination in unordered_by_dest collections', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.UNORDERED_BY_DEST,
+    );
+    const begin = await edges.getIterator();
+    const found = await edges.findDst(0n, begin);
+
+    expect(found.isEnd()).toBe(false);
+    expect([await found.source(), await found.destination()]).toEqual([4n, 0n]);
+
+    const afterFirst = await found.clone();
+    await afterFirst.advance();
+    const foundAgain = await edges.findDst(0n, afterFirst);
+    expect(foundAgain.isEnd()).toBe(false);
+    expect([await foundAgain.source(), await foundAgain.destination()]).toEqual([
+      2n,
+      0n,
+    ]);
+  });
 });

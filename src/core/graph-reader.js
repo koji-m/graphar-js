@@ -1006,6 +1006,23 @@ class EdgesCollection {
       indexConverter: this.indexConverter,
     });
   }
+
+  async getEndIterator() {
+    const iterator = await this.getIterator();
+    iterator.globalChunkIndex = this.chunkEnd;
+    iterator.curOffset = 0n;
+    iterator.vertexChunkIndex = this.indexConverter.edgeChunkNums.length;
+    iterator.numRowOfChunk = 0;
+    return iterator;
+  }
+
+  async findSrc(_id, _from) {
+    throw new Error('findSrc must be implemented by subclasses.');
+  }
+
+  async findDst(_id, _from) {
+    throw new Error('findDst must be implemented by subclasses.');
+  }
 }
 
 class OBSEdgesCollection extends EdgesCollection {
@@ -1027,6 +1044,22 @@ class OBSEdgesCollection extends EdgesCollection {
       AdjListType.ORDERED_BY_SOURCE,
       indexConverter,
     );
+  }
+
+  async findSrc(id, from) {
+    const iterator = await from.clone();
+    if (await iterator.firstSrc(from, id)) {
+      return iterator;
+    }
+    return await this.getEndIterator();
+  }
+
+  async findDst(id, from) {
+    const iterator = await from.clone();
+    if (await iterator.firstDst(from, id)) {
+      return iterator;
+    }
+    return await this.getEndIterator();
   }
 }
 
@@ -1050,6 +1083,22 @@ class OBDEdgesCollection extends EdgesCollection {
       indexConverter,
     );
   }
+
+  async findSrc(id, from) {
+    const iterator = await from.clone();
+    if (await iterator.firstSrc(from, id)) {
+      return iterator;
+    }
+    return await this.getEndIterator();
+  }
+
+  async findDst(id, from) {
+    const iterator = await from.clone();
+    if (await iterator.firstDst(from, id)) {
+      return iterator;
+    }
+    return await this.getEndIterator();
+  }
 }
 
 class UBSEdgesCollection extends EdgesCollection {
@@ -1072,6 +1121,22 @@ class UBSEdgesCollection extends EdgesCollection {
       indexConverter,
     );
   }
+
+  async findSrc(id, from) {
+    const iterator = await from.clone();
+    if (await iterator.firstSrc(from, id)) {
+      return iterator;
+    }
+    return await this.getEndIterator();
+  }
+
+  async findDst(id, from) {
+    const iterator = await from.clone();
+    if (await iterator.firstDst(from, id)) {
+      return iterator;
+    }
+    return await this.getEndIterator();
+  }
 }
 
 class UBDEdgesCollection extends EdgesCollection {
@@ -1093,6 +1158,22 @@ class UBDEdgesCollection extends EdgesCollection {
       AdjListType.UNORDERED_BY_DEST,
       indexConverter,
     );
+  }
+
+  async findSrc(id, from) {
+    const iterator = await from.clone();
+    if (await iterator.firstSrc(from, id)) {
+      return iterator;
+    }
+    return await this.getEndIterator();
+  }
+
+  async findDst(id, from) {
+    const iterator = await from.clone();
+    if (await iterator.firstDst(from, id)) {
+      return iterator;
+    }
+    return await this.getEndIterator();
   }
 }
 

@@ -14,6 +14,11 @@ At this point, the library can:
 - read vertex property chunks
 - read vertex label chunks
 - read edge topology chunks
+- expose high-level vertex access through `vertex.id()`, `vertex.property(...)`,
+  `vertex.label()`, `vertex.hasLabel(...)`, and `VerticesCollection.find(...)`
+- expose high-level edge access through `edge.source()`,
+  `edge.destination()`, `edge.property(...)`, `EdgesCollection.findSrc(...)`,
+  and `EdgesCollection.findDst(...)`
 - apply projection/filter on property chunk readers
 - iterate edges for the four GraphAr adjacency list layouts:
   `ordered_by_source`, `ordered_by_dest`, `unordered_by_source`, and
@@ -31,6 +36,7 @@ The current browser demo reads a GraphAr graph info file over HTTP, then:
 2. opens a vertex collection with `VerticesCollection.make`
 3. opens an edge collection with `EdgesCollection.make`
 4. prints a few sample vertices and edges
+5. shows high-level lookup by internal vertex id and edge search
 
 ```js
 import {
@@ -51,11 +57,19 @@ const vertices = await VerticesCollection.make(graphInfo, 'person');
 const vertexIterator = await vertices.getIterator();
 for (const vertex of vertexIterator) {
   console.log(
+    vertex.id(),
     await vertex.property('id'),
     await vertex.property('firstName'),
   );
   break;
 }
+
+const vertex = await vertices.find(3n);
+console.log(
+  vertex.id(),
+  await vertex.property('id'),
+  await vertex.label(),
+);
 
 const edges = await EdgesCollection.make(
   graphInfo,
@@ -67,8 +81,18 @@ const edges = await EdgesCollection.make(
 
 const edgeIterator = await edges.getIterator();
 for await (const edge of edgeIterator) {
-  console.log(await edge.source(), await edge.destination());
+  console.log(
+    await edge.source(),
+    await edge.destination(),
+    await edge.property('creationDate'),
+  );
   break;
+}
+
+const begin = await edges.getIterator();
+const found = await edges.findSrc(0n, begin);
+if (!found.isEnd()) {
+  console.log(await found.source(), await found.destination());
 }
 ```
 
@@ -86,16 +110,19 @@ constraints are:
   the reader path currently always uses `parquet-wasm`.
 - The reader path is browser-oriented and depends on `parquet-wasm`; Node-based
   checks need explicit WASM initialization.
-- Vertex property reads are available through `vertex.property(...)`.
-- Vertex label reads are available through `vertex.label()` and
-  `vertex.hasLabel(...)`.
+- High-level vertex access is available through `vertex.id()`,
+  `vertex.property(...)`, `vertex.label()`, `vertex.hasLabel(...)`, and
+  `VerticesCollection.find(...)`.
 - Property projection/filter is implemented on vertex and edge property chunk
   readers. Vertex collection filtering is available through
   `VerticesCollection.verticesWithLabel(...)`,
   `verticesWithMultipleLabels(...)`, and `verticesWithProperty(...)`.
-- Edge iteration currently exposes topology through `edge.source()` and
-  `edge.destination()`. Edge property access is not part of the stabilized
-  public API yet.
+- High-level edge access is available through `edge.source()`,
+  `edge.destination()`, `edge.property(...)`, `EdgesCollection.findSrc(...)`,
+  and `EdgesCollection.findDst(...)`.
+- Edge-iterator traversal helpers such as `firstSrc(...)`, `firstDst(...)`,
+  `nextSrc(...)`, and `nextDst(...)` exist to support the collection search
+  APIs, but they should still be treated as low-level, not-yet-stable helpers.
 - Row filters are evaluated in JavaScript after Parquet decode because the
   current `parquet-wasm` path does not expose the C++ reader's filter pushdown
   API.
