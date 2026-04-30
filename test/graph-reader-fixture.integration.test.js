@@ -342,4 +342,76 @@ describe('Graph reader minimal fixture integration', () => {
       break;
     }
   });
+
+  it('tracks consecutive sources with ordered_by_source edge iterators', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.ORDERED_BY_SOURCE,
+    );
+    const begin = await edges.getIterator();
+    const seeker = await begin.clone();
+
+    expect(await seeker.firstSrc(begin, 0n)).toBe(true);
+    expect([await seeker.source(), await seeker.destination()]).toEqual([0n, 1n]);
+    expect(await seeker.nextSrc()).toBe(true);
+    expect([await seeker.source(), await seeker.destination()]).toEqual([0n, 2n]);
+    expect(await seeker.nextSrc()).toBe(false);
+  });
+
+  it('tracks consecutive destinations with ordered_by_dest edge iterators', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.ORDERED_BY_DEST,
+    );
+    const begin = await edges.getIterator();
+    const seeker = await begin.clone();
+
+    expect(await seeker.firstDst(begin, 0n)).toBe(true);
+    expect([await seeker.source(), await seeker.destination()]).toEqual([2n, 0n]);
+    expect(await seeker.nextDst()).toBe(true);
+    expect([await seeker.source(), await seeker.destination()]).toEqual([4n, 0n]);
+    expect(await seeker.nextDst()).toBe(false);
+  });
+
+  it('scans within the aligned source chunk for unordered_by_source iterators', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.UNORDERED_BY_SOURCE,
+    );
+    const begin = await edges.getIterator();
+    const seeker = await begin.clone();
+
+    expect(await seeker.firstSrc(begin, 0n)).toBe(true);
+    expect([await seeker.source(), await seeker.destination()]).toEqual([0n, 1n]);
+    expect(await seeker.nextSrc()).toBe(true);
+    expect([await seeker.source(), await seeker.destination()]).toEqual([0n, 2n]);
+    expect(await seeker.nextSrc()).toBe(false);
+  });
+
+  it('scans within the aligned destination chunk for unordered_by_dest iterators', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.UNORDERED_BY_DEST,
+    );
+    const begin = await edges.getIterator();
+    const seeker = await begin.clone();
+
+    expect(await seeker.firstDst(begin, 0n)).toBe(true);
+    expect([await seeker.source(), await seeker.destination()]).toEqual([4n, 0n]);
+    expect(await seeker.nextDst()).toBe(true);
+    expect([await seeker.source(), await seeker.destination()]).toEqual([2n, 0n]);
+    expect(await seeker.nextDst()).toBe(false);
+  });
 });

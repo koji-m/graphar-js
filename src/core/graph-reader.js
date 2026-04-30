@@ -377,6 +377,92 @@ class EdgeIter {
     this.vertexChunkIndex = this.adjListReader.vertexChunkIndex;
   }
 
+  isEnd() {
+    return this.globalChunkIndex >= this.chunkEnd;
+  }
+
+  async clone() {
+    const [vertexChunkIndex, edgeChunkIndex] =
+      this.indexConverter.globalChunkIndexToIndexPair(this.globalChunkIndex);
+    const clonedAdjListReader = await AdjListArrowChunkReader.create({
+      edgeInfo: this.edgeInfo,
+      adjListType: this.adjListType,
+      prefix: this.prefix,
+    });
+    await clonedAdjListReader.seekChunkIndex(
+      vertexChunkIndex,
+      Number(edgeChunkIndex),
+    );
+    await clonedAdjListReader.seek(this.curOffset);
+
+    const clonedPropertyReaders = await Promise.all(
+      this.edgeInfo.propertyGroups.map(async (propertyGroup) => {
+        const propertyReader = await AdjListPropertyArrowChunkReader.create({
+          edgeInfo: this.edgeInfo,
+          propertyGroup,
+          adjListType: this.adjListType,
+          prefix: this.prefix,
+        });
+        await propertyReader.seekChunkIndex(
+          vertexChunkIndex,
+          Number(edgeChunkIndex),
+        );
+        await propertyReader.seek(this.curOffset);
+        return propertyReader;
+      }),
+    );
+
+    let clonedOffsetReader;
+    if (this.offsetReader) {
+      clonedOffsetReader = await AdjListOffsetArrowChunkReader.create({
+        edgeInfo: this.edgeInfo,
+        adjListType: this.adjListType,
+        prefix: this.prefix,
+      });
+    }
+
+    return new EdgeIter({
+      edgeInfo: this.edgeInfo,
+      prefix: this.prefix,
+      adjListType: this.adjListType,
+      adjListReader: clonedAdjListReader,
+      globalChunkIndex: this.globalChunkIndex,
+      curOffset: this.curOffset,
+      chunkSize: this.chunkSize,
+      srcChunkSize: this.srcChunkSize,
+      dstChunkSize: this.dstChunkSize,
+      numRowOfChunk: this.numRowOfChunk,
+      chunkBegin: this.chunkBegin,
+      chunkEnd: this.chunkEnd,
+      indexConverter: this.indexConverter,
+      vertexChunkIndex,
+      propertyReaders: clonedPropertyReaders,
+      offsetReader: clonedOffsetReader,
+    });
+  }
+
+  async refresh() {
+    const [vertexChunkIndex, edgeChunkIndex] =
+      this.indexConverter.globalChunkIndexToIndexPair(this.globalChunkIndex);
+    this.vertexChunkIndex = vertexChunkIndex;
+    await this.adjListReader.seekChunkIndex(
+      vertexChunkIndex,
+      Number(edgeChunkIndex),
+    );
+    await this.adjListReader.seek(this.curOffset);
+    for (const reader of this.propertyReaders) {
+      await reader.seekChunkIndex(vertexChunkIndex, Number(edgeChunkIndex));
+      await reader.seek(this.curOffset);
+    }
+    this.numRowOfChunk = await this.adjListReader.getRowNumOfChunk();
+  }
+
+  async toBegin() {
+    this.globalChunkIndex = this.chunkBegin;
+    this.curOffset = 0n;
+    await this.refresh();
+  }
+
   async moveToNextChunk() {
     const result = await this.adjListReader.nextChunk();
     this.globalChunkIndex += 1n;
@@ -456,6 +542,330 @@ class EdgeIter {
       return arrowArray.get(0);
     }
     throw new Error(`Edge property ${property} not found in edge info.`);
+  }
+
+  async firstSrc(from, id) {
+    const seekId = typeof id === 'bigint' ? id : BigInt(id);
+    const fromGlobalChunkIndex = from.globalChunkIndex;
+    const fromCurOffset = from.curOffset;
+    const fromVertexChunkIndex = from.vertexChunkIndex;
+
+    if (from.isEnd()) {
+      return false;
+    }
+
+    if (
+      this.adjListType === AdjListType.ORDERED_BY_DEST ||
+      this.adjListType === AdjListType.UNORDERED_BY_DEST
+    ) {
+      if (fromGlobalChunkIndex >= this.chunkEnd) {
+        return false;
+      }
+      if (fromGlobalChunkIndex === this.globalChunkIndex) {
+        this.curOffset = fromCurOffset;
+      } else if (fromGlobalChunkIndex < this.chunkBegin) {
+        await this.toBegin();
+      } else {
+        this.globalChunkIndex = fromGlobalChunkIndex;
+        this.curOffset = fromCurOffset;
+        this.vertexChunkIndex = fromVertexChunkIndex;
+        await this.refresh();
+      }
+      while (!this.isEnd()) {
+        if ((await this.source()) === seekId) {
+          return true;
+        }
+        await this.advance();
+      }
+      return false;
+    }
+
+    if (this.adjListType === AdjListType.UNORDERED_BY_SOURCE) {
+      const expectedChunkIndex = this.indexConverter.indexPairToGlobalChunkIndex(
+        Number(seekId / BigInt(this.srcChunkSize)),
+        0,
+      );
+      if (expectedChunkIndex > this.chunkEnd || fromGlobalChunkIndex >= this.chunkEnd) {
+        return false;
+      }
+      let needRefresh = false;
+      if (fromGlobalChunkIndex === this.globalChunkIndex) {
+        this.curOffset = fromCurOffset;
+      } else if (fromGlobalChunkIndex < this.chunkBegin) {
+        await this.toBegin();
+      } else {
+        this.globalChunkIndex = fromGlobalChunkIndex;
+        this.curOffset = fromCurOffset;
+        this.vertexChunkIndex = fromVertexChunkIndex;
+        needRefresh = true;
+      }
+      if (this.globalChunkIndex < expectedChunkIndex) {
+        this.globalChunkIndex = expectedChunkIndex;
+        this.curOffset = 0n;
+        this.vertexChunkIndex = Number(seekId / BigInt(this.srcChunkSize));
+        needRefresh = true;
+      }
+      if (needRefresh) {
+        await this.refresh();
+      }
+      while (!this.isEnd()) {
+        if ((await this.source()) === seekId) {
+          return true;
+        }
+        if (this.vertexChunkIndex > Number(seekId / BigInt(this.srcChunkSize))) {
+          return false;
+        }
+        await this.advance();
+      }
+      return false;
+    }
+
+    const seekResult = await this.offsetReader.seek(seekId);
+    if (!seekResult.ok) {
+      return false;
+    }
+    const offsetChunk = await this.offsetReader.getChunk();
+    const beginOffset = BigInt(offsetChunk.get(0));
+    const endOffset = BigInt(offsetChunk.get(1));
+    if (beginOffset >= endOffset) {
+      return false;
+    }
+    const vertexChunkIndexOfId = this.offsetReader.chunkIndex;
+    const beginGlobalIndex = this.indexConverter.indexPairToGlobalChunkIndex(
+      vertexChunkIndexOfId,
+      beginOffset / BigInt(this.chunkSize),
+    );
+    const endGlobalIndex = this.indexConverter.indexPairToGlobalChunkIndex(
+      vertexChunkIndexOfId,
+      endOffset / BigInt(this.chunkSize),
+    );
+    if (
+      beginGlobalIndex <= fromGlobalChunkIndex &&
+      fromGlobalChunkIndex <= endGlobalIndex
+    ) {
+      if (beginOffset < fromCurOffset && fromCurOffset < endOffset) {
+        this.globalChunkIndex = fromGlobalChunkIndex;
+        this.curOffset = fromCurOffset;
+        this.vertexChunkIndex = fromVertexChunkIndex;
+        await this.refresh();
+        return true;
+      }
+      if (fromCurOffset <= beginOffset) {
+        this.globalChunkIndex = beginGlobalIndex;
+        this.curOffset = beginOffset;
+        this.vertexChunkIndex = vertexChunkIndexOfId;
+        await this.refresh();
+        return true;
+      }
+      return false;
+    }
+    if (fromGlobalChunkIndex < beginGlobalIndex) {
+      this.globalChunkIndex = beginGlobalIndex;
+      this.curOffset = beginOffset;
+      this.vertexChunkIndex = vertexChunkIndexOfId;
+      await this.refresh();
+      return true;
+    }
+    return false;
+  }
+
+  async firstDst(from, id) {
+    const seekId = typeof id === 'bigint' ? id : BigInt(id);
+    const fromGlobalChunkIndex = from.globalChunkIndex;
+    const fromCurOffset = from.curOffset;
+    const fromVertexChunkIndex = from.vertexChunkIndex;
+
+    if (from.isEnd()) {
+      return false;
+    }
+
+    if (
+      this.adjListType === AdjListType.ORDERED_BY_SOURCE ||
+      this.adjListType === AdjListType.UNORDERED_BY_SOURCE
+    ) {
+      if (fromGlobalChunkIndex >= this.chunkEnd) {
+        return false;
+      }
+      if (fromGlobalChunkIndex === this.globalChunkIndex) {
+        this.curOffset = fromCurOffset;
+      } else if (fromGlobalChunkIndex < this.chunkBegin) {
+        await this.toBegin();
+      } else {
+        this.globalChunkIndex = fromGlobalChunkIndex;
+        this.curOffset = fromCurOffset;
+        this.vertexChunkIndex = fromVertexChunkIndex;
+        await this.refresh();
+      }
+      while (!this.isEnd()) {
+        if ((await this.destination()) === seekId) {
+          return true;
+        }
+        await this.advance();
+      }
+      return false;
+    }
+
+    if (this.adjListType === AdjListType.UNORDERED_BY_DEST) {
+      const expectedChunkIndex = this.indexConverter.indexPairToGlobalChunkIndex(
+        Number(seekId / BigInt(this.dstChunkSize)),
+        0,
+      );
+      if (expectedChunkIndex > this.chunkEnd || fromGlobalChunkIndex >= this.chunkEnd) {
+        return false;
+      }
+      let needRefresh = false;
+      if (fromGlobalChunkIndex === this.globalChunkIndex) {
+        this.curOffset = fromCurOffset;
+      } else if (fromGlobalChunkIndex < this.chunkBegin) {
+        await this.toBegin();
+      } else {
+        this.globalChunkIndex = fromGlobalChunkIndex;
+        this.curOffset = fromCurOffset;
+        this.vertexChunkIndex = fromVertexChunkIndex;
+        needRefresh = true;
+      }
+      if (this.globalChunkIndex < expectedChunkIndex) {
+        this.globalChunkIndex = expectedChunkIndex;
+        this.curOffset = 0n;
+        this.vertexChunkIndex = Number(seekId / BigInt(this.dstChunkSize));
+        needRefresh = true;
+      }
+      if (needRefresh) {
+        await this.refresh();
+      }
+      while (!this.isEnd()) {
+        if ((await this.destination()) === seekId) {
+          return true;
+        }
+        if (this.vertexChunkIndex > Number(seekId / BigInt(this.dstChunkSize))) {
+          return false;
+        }
+        await this.advance();
+      }
+      return false;
+    }
+
+    const seekResult = await this.offsetReader.seek(seekId);
+    if (!seekResult.ok) {
+      return false;
+    }
+    const offsetChunk = await this.offsetReader.getChunk();
+    const beginOffset = BigInt(offsetChunk.get(0));
+    const endOffset = BigInt(offsetChunk.get(1));
+    if (beginOffset >= endOffset) {
+      return false;
+    }
+    const vertexChunkIndexOfId = this.offsetReader.chunkIndex;
+    const beginGlobalIndex = this.indexConverter.indexPairToGlobalChunkIndex(
+      vertexChunkIndexOfId,
+      beginOffset / BigInt(this.chunkSize),
+    );
+    const endGlobalIndex = this.indexConverter.indexPairToGlobalChunkIndex(
+      vertexChunkIndexOfId,
+      endOffset / BigInt(this.chunkSize),
+    );
+    if (
+      beginGlobalIndex <= fromGlobalChunkIndex &&
+      fromGlobalChunkIndex <= endGlobalIndex
+    ) {
+      if (beginOffset < fromCurOffset && fromCurOffset < endOffset) {
+        this.globalChunkIndex = fromGlobalChunkIndex;
+        this.curOffset = fromCurOffset;
+        this.vertexChunkIndex = fromVertexChunkIndex;
+        await this.refresh();
+        return true;
+      }
+      if (fromCurOffset <= beginOffset) {
+        this.globalChunkIndex = beginGlobalIndex;
+        this.curOffset = beginOffset;
+        this.vertexChunkIndex = vertexChunkIndexOfId;
+        await this.refresh();
+        return true;
+      }
+      return false;
+    }
+    if (fromGlobalChunkIndex < beginGlobalIndex) {
+      this.globalChunkIndex = beginGlobalIndex;
+      this.curOffset = beginOffset;
+      this.vertexChunkIndex = vertexChunkIndexOfId;
+      await this.refresh();
+      return true;
+    }
+    return false;
+  }
+
+  async nextSrc(id = undefined) {
+    if (this.isEnd()) {
+      return false;
+    }
+    if (id !== undefined) {
+      const hasNext = await this.advance();
+      if (!hasNext) {
+        return false;
+      }
+      return await this.firstSrc(this, id);
+    }
+
+    const currentId = await this.source();
+    const previousVertexChunkIndex = this.vertexChunkIndex;
+    if (this.adjListType === AdjListType.ORDERED_BY_SOURCE) {
+      const hasNext = await this.advance();
+      if (!hasNext || this.isEnd()) {
+        return false;
+      }
+      return (await this.source()) === currentId;
+    }
+    let hasNext = await this.advance();
+    while (hasNext && !this.isEnd()) {
+      if ((await this.source()) === currentId) {
+        return true;
+      }
+      if (
+        this.adjListType === AdjListType.UNORDERED_BY_SOURCE &&
+        this.vertexChunkIndex > previousVertexChunkIndex
+      ) {
+        return false;
+      }
+      hasNext = await this.advance();
+    }
+    return false;
+  }
+
+  async nextDst(id = undefined) {
+    if (this.isEnd()) {
+      return false;
+    }
+    if (id !== undefined) {
+      const hasNext = await this.advance();
+      if (!hasNext) {
+        return false;
+      }
+      return await this.firstDst(this, id);
+    }
+
+    const currentId = await this.destination();
+    const previousVertexChunkIndex = this.vertexChunkIndex;
+    if (this.adjListType === AdjListType.ORDERED_BY_DEST) {
+      const hasNext = await this.advance();
+      if (!hasNext || this.isEnd()) {
+        return false;
+      }
+      return (await this.destination()) === currentId;
+    }
+    let hasNext = await this.advance();
+    while (hasNext && !this.isEnd()) {
+      if ((await this.destination()) === currentId) {
+        return true;
+      }
+      if (
+        this.adjListType === AdjListType.UNORDERED_BY_DEST &&
+        this.vertexChunkIndex > previousVertexChunkIndex
+      ) {
+        return false;
+      }
+      hasNext = await this.advance();
+    }
+    return false;
   }
 
   async *[Symbol.asyncIterator]() {

@@ -6,11 +6,11 @@ class IndexConverter {
   }
 
   indexPairToGlobalChunkIndex(vertexChunkIndex, edgeChunkIndex) {
-    let globalEdgeChunkIndex = 0;
+    let globalEdgeChunkIndex = 0n;
     for (let i = 0; i < vertexChunkIndex; i++) {
       globalEdgeChunkIndex += this.edgeChunkNums[i];
     }
-    return globalEdgeChunkIndex + edgeChunkIndex;
+    return globalEdgeChunkIndex + BigInt(edgeChunkIndex);
   }
 
   globalChunkIndexToIndexPair(globalIndex) {
