@@ -516,4 +516,232 @@ describe('Graph reader minimal fixture integration', () => {
       0n,
     ]);
   });
+
+  it('limits ordered_by_source searches to the requested vertex chunk range', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.ORDERED_BY_SOURCE,
+      1n,
+      2n,
+    );
+    const begin = await edges.getIterator();
+
+    expect(edges.edgeNum).toBe(2n);
+    expect(begin.isEnd()).toBe(false);
+    expect([await begin.source(), await begin.destination()]).toEqual([2n, 0n]);
+
+    const foundInRange = await edges.findSrc(2n, begin);
+    expect(foundInRange.isEnd()).toBe(false);
+    expect([await foundInRange.source(), await foundInRange.destination()]).toEqual([
+      2n,
+      0n,
+    ]);
+
+    const foundDstInRange = await edges.findDst(4n, begin);
+    expect(foundDstInRange.isEnd()).toBe(false);
+    expect([
+      await foundDstInRange.source(),
+      await foundDstInRange.destination(),
+    ]).toEqual([3n, 4n]);
+
+    const srcOutOfRange = await edges.findSrc(0n, begin);
+    expect(srcOutOfRange.isEnd()).toBe(true);
+
+    const dstOutOfRange = await edges.findDst(1n, begin);
+    expect(dstOutOfRange.isEnd()).toBe(true);
+  });
+
+  it('limits ordered_by_dest searches to the requested vertex chunk range', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.ORDERED_BY_DEST,
+      1n,
+      2n,
+    );
+    const begin = await edges.getIterator();
+
+    expect(edges.edgeNum).toBe(2n);
+    expect(begin.isEnd()).toBe(false);
+    expect([await begin.source(), await begin.destination()]).toEqual([0n, 2n]);
+
+    const foundDstInRange = await edges.findDst(2n, begin);
+    expect(foundDstInRange.isEnd()).toBe(false);
+    expect([
+      await foundDstInRange.source(),
+      await foundDstInRange.destination(),
+    ]).toEqual([0n, 2n]);
+
+    const foundSrcInRange = await edges.findSrc(1n, begin);
+    expect(foundSrcInRange.isEnd()).toBe(false);
+    expect([
+      await foundSrcInRange.source(),
+      await foundSrcInRange.destination(),
+    ]).toEqual([1n, 3n]);
+
+    const dstOutOfRange = await edges.findDst(0n, begin);
+    expect(dstOutOfRange.isEnd()).toBe(true);
+
+    const srcOutOfRange = await edges.findSrc(4n, begin);
+    expect(srcOutOfRange.isEnd()).toBe(true);
+  });
+
+  it('limits unordered_by_source searches to the requested vertex chunk range', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.UNORDERED_BY_SOURCE,
+      1n,
+      2n,
+    );
+    const begin = await edges.getIterator();
+
+    expect(edges.edgeNum).toBe(2n);
+    expect(begin.isEnd()).toBe(false);
+    expect([await begin.source(), await begin.destination()]).toEqual([3n, 4n]);
+
+    const foundSrcInRange = await edges.findSrc(2n, begin);
+    expect(foundSrcInRange.isEnd()).toBe(false);
+    expect([
+      await foundSrcInRange.source(),
+      await foundSrcInRange.destination(),
+    ]).toEqual([2n, 0n]);
+
+    const foundDstInRange = await edges.findDst(4n, begin);
+    expect(foundDstInRange.isEnd()).toBe(false);
+    expect([
+      await foundDstInRange.source(),
+      await foundDstInRange.destination(),
+    ]).toEqual([3n, 4n]);
+
+    const srcOutOfRange = await edges.findSrc(0n, begin);
+    expect(srcOutOfRange.isEnd()).toBe(true);
+
+    const dstOutOfRange = await edges.findDst(1n, begin);
+    expect(dstOutOfRange.isEnd()).toBe(true);
+  });
+
+  it('limits unordered_by_dest searches to the requested vertex chunk range', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.UNORDERED_BY_DEST,
+      1n,
+      2n,
+    );
+    const begin = await edges.getIterator();
+
+    expect(edges.edgeNum).toBe(2n);
+    expect(begin.isEnd()).toBe(false);
+    expect([await begin.source(), await begin.destination()]).toEqual([1n, 3n]);
+
+    const foundDstInRange = await edges.findDst(2n, begin);
+    expect(foundDstInRange.isEnd()).toBe(false);
+    expect([
+      await foundDstInRange.source(),
+      await foundDstInRange.destination(),
+    ]).toEqual([0n, 2n]);
+
+    const foundSrcInRange = await edges.findSrc(1n, begin);
+    expect(foundSrcInRange.isEnd()).toBe(false);
+    expect([
+      await foundSrcInRange.source(),
+      await foundSrcInRange.destination(),
+    ]).toEqual([1n, 3n]);
+
+    const dstOutOfRange = await edges.findDst(0n, begin);
+    expect(dstOutOfRange.isEnd()).toBe(true);
+
+    const srcOutOfRange = await edges.findSrc(4n, begin);
+    expect(srcOutOfRange.isEnd()).toBe(true);
+  });
+
+  it('stops ordered_by_source nextSrc at the end of a partial collection', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.ORDERED_BY_SOURCE,
+      0n,
+      1n,
+    );
+    const begin = await edges.getIterator();
+    const seeker = await edges.findSrc(1n, begin);
+
+    expect(seeker.isEnd()).toBe(false);
+    expect([await seeker.source(), await seeker.destination()]).toEqual([1n, 3n]);
+    expect(await seeker.nextSrc()).toBe(false);
+    expect(seeker.isEnd()).toBe(true);
+  });
+
+  it('stops ordered_by_dest nextDst at the end of a partial collection', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.ORDERED_BY_DEST,
+      0n,
+      1n,
+    );
+    const begin = await edges.getIterator();
+    const seeker = await edges.findDst(1n, begin);
+
+    expect(seeker.isEnd()).toBe(false);
+    expect([await seeker.source(), await seeker.destination()]).toEqual([0n, 1n]);
+    expect(await seeker.nextDst()).toBe(false);
+    expect(seeker.isEnd()).toBe(true);
+  });
+
+  it('stops unordered_by_source nextSrc at the end of a partial collection', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.UNORDERED_BY_SOURCE,
+      0n,
+      1n,
+    );
+    const begin = await edges.getIterator();
+    const seeker = await edges.findSrc(0n, begin);
+
+    expect(seeker.isEnd()).toBe(false);
+    expect([await seeker.source(), await seeker.destination()]).toEqual([0n, 1n]);
+    expect(await seeker.nextSrc()).toBe(true);
+    expect([await seeker.source(), await seeker.destination()]).toEqual([0n, 2n]);
+    expect(await seeker.nextSrc()).toBe(false);
+    expect(seeker.isEnd()).toBe(true);
+  });
+
+  it('stops unordered_by_dest nextDst at the end of a partial collection', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.UNORDERED_BY_DEST,
+      0n,
+      1n,
+    );
+    const begin = await edges.getIterator();
+    const seeker = await edges.findDst(0n, begin);
+
+    expect(seeker.isEnd()).toBe(false);
+    expect([await seeker.source(), await seeker.destination()]).toEqual([4n, 0n]);
+    expect(await seeker.nextDst()).toBe(true);
+    expect([await seeker.source(), await seeker.destination()]).toEqual([2n, 0n]);
+    expect(await seeker.nextDst()).toBe(false);
+    expect(seeker.isEnd()).toBe(true);
+  });
 });

@@ -83,6 +83,28 @@ async function readExampleGraph(graphInfoPath) {
     }
   }
 
+  const partialEdges = await EdgesCollection.make(
+    graphInfo,
+    'person',
+    'knows',
+    'person',
+    AdjListType.ORDERED_BY_SOURCE,
+    1n,
+    2n,
+  );
+  const partialEdgeIterator = await partialEdges.getIterator();
+  const partialEdgeLines = [];
+  let partialEdgeCount = 0;
+  for await (const edge of partialEdgeIterator) {
+    partialEdgeLines.push(
+      `src=${await edge.source()}, dst=${await edge.destination()}`,
+    );
+    partialEdgeCount += 1;
+    if (partialEdgeCount >= 3) {
+      break;
+    }
+  }
+
   const output = [
     'Graph',
     `name=${graphInfo.graphName}`,
@@ -102,6 +124,9 @@ async function readExampleGraph(graphInfoPath) {
     '',
     'Sample Edges',
     ...edgeLines,
+    '',
+    'Sample Partial Edges (ordered_by_source, vertexChunk=[1, 2))',
+    ...partialEdgeLines,
   ];
 
   return output.join('\n');

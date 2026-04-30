@@ -19,6 +19,8 @@ At this point, the library can:
 - expose high-level edge access through `edge.source()`,
   `edge.destination()`, `edge.property(...)`, `EdgesCollection.findSrc(...)`,
   and `EdgesCollection.findDst(...)`
+- support partial edge collections through
+  `EdgesCollection.make(..., vertexChunkBegin, vertexChunkEnd)`
 - apply projection/filter on property chunk readers
 - iterate edges for the four GraphAr adjacency list layouts:
   `ordered_by_source`, `ordered_by_dest`, `unordered_by_source`, and
@@ -37,6 +39,7 @@ The current browser demo reads a GraphAr graph info file over HTTP, then:
 3. opens an edge collection with `EdgesCollection.make`
 4. prints a few sample vertices and edges
 5. shows high-level lookup by internal vertex id and edge search
+6. shows reading a partial edge collection by vertex chunk range
 
 ```js
 import {
@@ -94,6 +97,20 @@ const found = await edges.findSrc(0n, begin);
 if (!found.isEnd()) {
   console.log(await found.source(), await found.destination());
 }
+
+const secondSourceChunk = await EdgesCollection.make(
+  graphInfo,
+  'person',
+  'knows',
+  'person',
+  AdjListType.ORDERED_BY_SOURCE,
+  1n,
+  2n,
+);
+const partialBegin = await secondSourceChunk.getIterator();
+if (!partialBegin.isEnd()) {
+  console.log(await partialBegin.source(), await partialBegin.destination());
+}
 ```
 
 For a runnable example, see [demo/main.js](./demo/main.js).
@@ -120,6 +137,9 @@ constraints are:
 - High-level edge access is available through `edge.source()`,
   `edge.destination()`, `edge.property(...)`, `EdgesCollection.findSrc(...)`,
   and `EdgesCollection.findDst(...)`.
+- Partial edge collections are available through
+  `EdgesCollection.make(..., vertexChunkBegin, vertexChunkEnd)`, where the
+  chunk range is half-open and searches stay inside that range.
 - Edge-iterator traversal helpers such as `firstSrc(...)`, `firstDst(...)`,
   `nextSrc(...)`, and `nextDst(...)` exist to support the collection search
   APIs, but they should still be treated as low-level, not-yet-stable helpers.
