@@ -9,6 +9,7 @@ import {
   initWasm,
   VerticesCollection,
 } from '../src/index.js';
+import { getAdjListOffsetOfVertex } from '../src/core/reader-util.js';
 
 const fixtureDir = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -263,6 +264,92 @@ describe('Graph reader minimal fixture integration', () => {
     expect(namedIds).toEqual([103n]);
   });
 
+  it('resolves ordered adjacency offset ranges from the fixture offset tables', async () => {
+    const edgeInfo = graphInfo.getEdgeInfo('person', 'knows', 'person');
+
+    await expect(
+      getAdjListOffsetOfVertex(
+        graphInfo.prefix,
+        edgeInfo,
+        AdjListType.ORDERED_BY_SOURCE,
+        0n,
+      ),
+    ).resolves.toEqual([0n, 2n]);
+    await expect(
+      getAdjListOffsetOfVertex(
+        graphInfo.prefix,
+        edgeInfo,
+        AdjListType.ORDERED_BY_SOURCE,
+        1n,
+      ),
+    ).resolves.toEqual([2n, 3n]);
+    await expect(
+      getAdjListOffsetOfVertex(
+        graphInfo.prefix,
+        edgeInfo,
+        AdjListType.ORDERED_BY_SOURCE,
+        2n,
+      ),
+    ).resolves.toEqual([0n, 1n]);
+    await expect(
+      getAdjListOffsetOfVertex(
+        graphInfo.prefix,
+        edgeInfo,
+        AdjListType.ORDERED_BY_SOURCE,
+        3n,
+      ),
+    ).resolves.toEqual([1n, 2n]);
+    await expect(
+      getAdjListOffsetOfVertex(
+        graphInfo.prefix,
+        edgeInfo,
+        AdjListType.ORDERED_BY_SOURCE,
+        4n,
+      ),
+    ).resolves.toEqual([0n, 1n]);
+
+    await expect(
+      getAdjListOffsetOfVertex(
+        graphInfo.prefix,
+        edgeInfo,
+        AdjListType.ORDERED_BY_DEST,
+        0n,
+      ),
+    ).resolves.toEqual([0n, 2n]);
+    await expect(
+      getAdjListOffsetOfVertex(
+        graphInfo.prefix,
+        edgeInfo,
+        AdjListType.ORDERED_BY_DEST,
+        1n,
+      ),
+    ).resolves.toEqual([2n, 3n]);
+    await expect(
+      getAdjListOffsetOfVertex(
+        graphInfo.prefix,
+        edgeInfo,
+        AdjListType.ORDERED_BY_DEST,
+        2n,
+      ),
+    ).resolves.toEqual([0n, 1n]);
+    await expect(
+      getAdjListOffsetOfVertex(
+        graphInfo.prefix,
+        edgeInfo,
+        AdjListType.ORDERED_BY_DEST,
+        3n,
+      ),
+    ).resolves.toEqual([1n, 2n]);
+    await expect(
+      getAdjListOffsetOfVertex(
+        graphInfo.prefix,
+        edgeInfo,
+        AdjListType.ORDERED_BY_DEST,
+        4n,
+      ),
+    ).resolves.toEqual([0n, 1n]);
+  });
+
   it.each([
     [
       AdjListType.ORDERED_BY_SOURCE,
@@ -442,6 +529,25 @@ describe('Graph reader minimal fixture integration', () => {
     expect(missing.isEnd()).toBe(true);
   });
 
+  it('uses ordered_by_source offsets that land in the second edge chunk of a partition', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.ORDERED_BY_SOURCE,
+    );
+    const begin = await edges.getIterator();
+    const found = await edges.findSrc(1n, begin);
+
+    expect(found.isEnd()).toBe(false);
+    expect(found.globalChunkIndex).toBe(1n);
+    expect(found.curOffset).toBe(2n);
+    expect([await found.source(), await found.destination()]).toEqual([1n, 3n]);
+    expect(await found.property('creationDate')).toBe('2020-01-03');
+    expect(await found.nextSrc()).toBe(false);
+  });
+
   it('finds incoming edges from a given iterator in ordered_by_dest collections', async () => {
     const edges = await EdgesCollection.make(
       graphInfo,
@@ -467,6 +573,25 @@ describe('Graph reader minimal fixture integration', () => {
 
     const missing = await edges.findDst(99n, begin);
     expect(missing.isEnd()).toBe(true);
+  });
+
+  it('uses ordered_by_dest offsets that land in the second edge chunk of a partition', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.ORDERED_BY_DEST,
+    );
+    const begin = await edges.getIterator();
+    const found = await edges.findDst(1n, begin);
+
+    expect(found.isEnd()).toBe(false);
+    expect(found.globalChunkIndex).toBe(1n);
+    expect(found.curOffset).toBe(2n);
+    expect([await found.source(), await found.destination()]).toEqual([0n, 1n]);
+    expect(await found.property('creationDate')).toBe('2020-01-01');
+    expect(await found.nextDst()).toBe(false);
   });
 
   it('finds edges by source in unordered_by_source collections', async () => {
