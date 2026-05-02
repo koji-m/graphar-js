@@ -286,6 +286,7 @@ describe('VertexPropertyArrowChunkReader', () => {
       'id',
       'firstName',
     ]);
+    expect(chunk.schema.fields[2].type).toBeInstanceOf(arrow.LargeUtf8);
   });
 
   it('keeps the narrowed schema shape on the no-filter propertyNames path', async () => {
@@ -347,6 +348,7 @@ describe('VertexPropertyArrowChunkReader', () => {
       'id',
       'firstName',
     ]);
+    expect(chunk.schema.fields[2].type).not.toBeInstanceOf(arrow.LargeUtf8);
     expect(chunk.numRows).toBe(1);
   });
 

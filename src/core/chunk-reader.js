@@ -30,8 +30,37 @@ function propertyGroupToSchema(propertyGroup, containIndexColumn = false) {
 }
 
 function castTableWithSchema(table, _schema) {
-  // TODO
-  return table;
+  if (
+    table.schema.fields.every((field) => {
+      const schemaField = _schema.fields.find(
+        (candidate) => candidate.name === field.name,
+      );
+      return schemaField && field.type.typeId === schemaField.type.typeId;
+    })
+  ) {
+    return table;
+  }
+
+  const columns = Object.fromEntries(
+    table.schema.fields.map((field) => {
+      const schemaField = _schema.fields.find(
+        (candidate) => candidate.name === field.name,
+      );
+      if (!schemaField) {
+        throw new Error(`Column ${field.name} not found in schema.`);
+      }
+      const values = [];
+      const child = table.getChild(field.name);
+      if (!child) {
+        throw new Error(`Column ${field.name} not found in table.`);
+      }
+      for (let rowIndex = 0; rowIndex < table.numRows; rowIndex++) {
+        values.push(child.get(rowIndex));
+      }
+      return [field.name, arrow.vectorFromArray(values, schemaField.type)];
+    }),
+  );
+  return arrow.tableFromArrays(columns);
 }
 
 async function readTableWithColumns(fs, path, fileType, columns) {
