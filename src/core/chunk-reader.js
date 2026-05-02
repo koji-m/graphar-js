@@ -725,6 +725,41 @@ class AdjListPropertyArrowChunkReader {
     return { ok: true };
   }
 
+  buildReadPlan() {
+    const chunkFilePath = this.edgeInfo.getPropertyFilePath(
+      this.propertyGroup,
+      this.adjListType,
+      this.vertexChunkIndex,
+      this.chunkIndex,
+    );
+    const path = this.prefix + chunkFilePath;
+    const { readColumns, projectionColumns } = prepareReadOptions({
+      schema: this.schema,
+      selectedColumns: this.filterOptions.columns ?? null,
+      filter: this.filterOptions.filter ?? null,
+    });
+
+    return {
+      path,
+      readColumns,
+      projectionColumns,
+    };
+  }
+
+  finalizeChunkTable(table, { projectionColumns, schema = null } = {}) {
+    let finalizedTable = applyFilterToTable(
+      table,
+      this.filterOptions.filter ?? null,
+    );
+    if (projectionColumns !== null) {
+      finalizedTable = finalizedTable.select(projectionColumns);
+    }
+    if (schema !== null && this.filterOptions.filter == null) {
+      finalizedTable = castTableWithSchema(finalizedTable, schema);
+    }
+    return finalizedTable;
+  }
+
   async getChunk() {
     if (this.chunkTable === null) {
       const edgeNum = await getEdgeNum(
@@ -736,34 +771,17 @@ class AdjListPropertyArrowChunkReader {
       if (edgeNum === 0n) {
         return null;
       }
-      const chunkFilePath = this.edgeInfo.getPropertyFilePath(
-        this.propertyGroup,
-        this.adjListType,
-        this.vertexChunkIndex,
-        this.chunkIndex,
-      );
-      const path = this.prefix + chunkFilePath;
-      const { readColumns, projectionColumns } = prepareReadOptions({
-        schema: this.schema,
-        selectedColumns: this.filterOptions.columns ?? null,
-        filter: this.filterOptions.filter ?? null,
-      });
-      this.chunkTable = await readTableWithColumns(
+      const { path, readColumns, projectionColumns } = this.buildReadPlan();
+      const chunkTable = await readTableWithColumns(
         this.fs,
         path,
         this.propertyGroup.fileType,
         readColumns,
       );
-      this.chunkTable = applyFilterToTable(
-        this.chunkTable,
-        this.filterOptions.filter ?? null,
-      );
-      if (projectionColumns !== null) {
-        this.chunkTable = this.chunkTable.select(projectionColumns);
-      }
-      if (this.schema !== null && this.filterOptions.filter == null) {
-        this.chunkTable = castTableWithSchema(this.chunkTable, this.schema);
-      }
+      this.chunkTable = this.finalizeChunkTable(chunkTable, {
+        projectionColumns,
+        schema: this.schema,
+      });
     }
     const rowOffset =
       this.seekOffset - BigInt(this.chunkIndex) * BigInt(this.edgeInfo.chunkSize);
