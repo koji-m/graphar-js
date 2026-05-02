@@ -192,13 +192,19 @@ class EdgeInfo {
                 );
                 const isPrimary = propertyMeta.is_primary ?? false;
                 const isNullable = propertyMeta.is_nullable ?? true;
-                const cardinality = propertyMeta.cardinality;
+                const cardinality = propertyMeta.cardinality ?? 'single';
                 if (cardinality !== undefined && cardinality !== 'single') {
                   throw new Error(
                     `Unsupported cardinality: ${cardinality} for edge property`,
                   );
                 }
-                return new Property({ name, type, isPrimary, isNullable });
+                return new Property({
+                  name,
+                  type,
+                  isPrimary,
+                  isNullable,
+                  cardinality,
+                });
               })
             : [];
           return new PropertyGroup({ properties, fileType, prefix });

@@ -41,9 +41,9 @@ function makeEdgeInfo(adjLists, { srcChunkSize = 100, dstChunkSize = 200 } = {})
 }
 
 function makePropertyTable() {
-  return {
-    slice: vi.fn((rowOffset) => ({ rowOffset })),
-  };
+  return arrow.tableFromArrays({
+    creationDate: ['2020-01-04', '2020-01-05'],
+  });
 }
 
 describe('AdjListPropertyArrowChunkReader', () => {
@@ -132,8 +132,7 @@ describe('AdjListPropertyArrowChunkReader', () => {
       'http://example.test/graphs/edge/person_knows_person/unordered_by_source/creationDate/part1/chunk0',
       'parquet',
     );
-    expect(propertyTable.slice).toHaveBeenCalledWith(0);
-    expect(chunk).toEqual({ rowOffset: 0 });
+    expect(chunk.getChild('creationDate').get(0)).toBe('2020-01-04');
   });
 
   it('rejects invalid seek direction for the current adjacency list type', async () => {
@@ -225,5 +224,73 @@ describe('AdjListPropertyArrowChunkReader', () => {
 
     expect(chunk.numRows).toBe(1);
     expect(chunk.getChild('creationDate').get(0)).toBe('2020-01-05');
+  });
+
+  it('keeps the no-filter edge property schema and casts string columns to LargeUtf8', async () => {
+    const edgeInfo = makeEdgeInfo([
+      { ordered: false, aligned_by: 'src', file_type: 'parquet' },
+    ]);
+    fs.readFileAsSingleUint64
+      .mockResolvedValueOnce(250n)
+      .mockResolvedValueOnce(32n)
+      .mockResolvedValueOnce(32n);
+    fs.readFileAsTable.mockResolvedValue(
+      arrow.tableFromArrays({
+        creationDate: ['2020-01-04', '2020-01-05'],
+      }),
+    );
+
+    const reader = await AdjListPropertyArrowChunkReader.create({
+      edgeInfo,
+      propertyGroup: edgeInfo.propertyGroups[0],
+      adjListType: AdjListType.UNORDERED_BY_SOURCE,
+      prefix: 'http://example.test/graphs/',
+    });
+
+    await reader.seekSrc(101n);
+    const chunk = await reader.getChunk();
+
+    expect(chunk.schema.fields.map((field) => field.name)).toEqual([
+      'creationDate',
+    ]);
+    expect(chunk.schema.fields[0].type).toBeInstanceOf(arrow.LargeUtf8);
+  });
+
+  it('does not force the no-filter edge property schema after JS-side filtering', async () => {
+    const edgeInfo = makeEdgeInfo([
+      { ordered: false, aligned_by: 'src', file_type: 'parquet' },
+    ]);
+    fs.readFileAsSingleUint64
+      .mockResolvedValueOnce(250n)
+      .mockResolvedValueOnce(32n)
+      .mockResolvedValueOnce(32n);
+    fs.readFileAsTable.mockResolvedValue(
+      arrow.tableFromArrays({
+        creationDate: ['2020-01-04', '2020-01-05'],
+      }),
+    );
+
+    const reader = await AdjListPropertyArrowChunkReader.create({
+      edgeInfo,
+      propertyGroup: edgeInfo.propertyGroups[0],
+      adjListType: AdjListType.UNORDERED_BY_SOURCE,
+      prefix: 'http://example.test/graphs/',
+      options: {
+        filter: {
+          op: 'eq',
+          column: 'creationDate',
+          value: '2020-01-05',
+        },
+      },
+    });
+
+    await reader.seekSrc(101n);
+    const chunk = await reader.getChunk();
+
+    expect(chunk.schema.fields.map((field) => field.name)).toEqual([
+      'creationDate',
+    ]);
+    expect(chunk.schema.fields[0].type).not.toBeInstanceOf(arrow.LargeUtf8);
+    expect(chunk.numRows).toBe(1);
   });
 });
