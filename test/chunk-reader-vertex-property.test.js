@@ -1,6 +1,7 @@
 import * as arrow from 'apache-arrow';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { VertexPropertyArrowChunkReader } from '../src/core/chunk-reader.js';
+import GENERAL_PARAMS from '../src/core/general-params.js';
 import { VertexInfo } from '../src/core/graph-info.js';
 
 const fs = {
@@ -258,5 +259,136 @@ describe('VertexPropertyArrowChunkReader', () => {
     ]);
     expect(chunk.getChild('_graphArVertexIndex').get(0)).toBe(1n);
     expect(chunk.getChild('firstName').get(0)).toBe('Bob');
+  });
+
+  it('keeps the full vertex-property schema on the no-filter property-group path', async () => {
+    const vertexInfo = makeVertexInfo();
+    fs.readFileAsSingleUint64.mockResolvedValue(5n);
+    fs.readFileAsTable.mockResolvedValue(
+      arrow.tableFromArrays({
+        _graphArVertexIndex: [0n, 1n],
+        id: [100n, 101n],
+        firstName: ['Ann', 'Bob'],
+      }),
+    );
+
+    const reader = await VertexPropertyArrowChunkReader.create({
+      vertexInfo,
+      propertyGroup: vertexInfo.propertyGroups[0],
+      prefix: 'http://example.test/graphs/',
+    });
+
+    reader.seek(0n);
+    const chunk = await reader.getChunk();
+
+    expect(chunk.schema.fields.map((field) => field.name)).toEqual([
+      GENERAL_PARAMS.kVertexIndexCol,
+      'id',
+      'firstName',
+    ]);
+  });
+
+  it('keeps the narrowed schema shape on the no-filter propertyNames path', async () => {
+    const vertexInfo = makeVertexInfo();
+    fs.readFileAsSingleUint64.mockResolvedValue(5n);
+    fs.readFileAsTable.mockResolvedValue(
+      arrow.tableFromArrays({
+        _graphArVertexIndex: [0n, 1n],
+        id: [100n, 101n],
+        firstName: ['Ann', 'Bob'],
+      }),
+    );
+
+    const reader = await VertexPropertyArrowChunkReader.create({
+      vertexInfo,
+      propertyGroup: vertexInfo.propertyGroups[0],
+      propertyNames: ['firstName'],
+      prefix: 'http://example.test/graphs/',
+    });
+
+    reader.seek(0n);
+    const chunk = await reader.getChunk();
+
+    expect(chunk.schema.fields.map((field) => field.name)).toEqual([
+      GENERAL_PARAMS.kVertexIndexCol,
+      'firstName',
+    ]);
+  });
+
+  it('does not force the no-filter schema after JS-side filtering', async () => {
+    const vertexInfo = makeVertexInfo();
+    fs.readFileAsSingleUint64.mockResolvedValue(5n);
+    fs.readFileAsTable.mockResolvedValue(
+      arrow.tableFromArrays({
+        _graphArVertexIndex: [0n, 1n],
+        id: [100n, 101n],
+        firstName: ['Ann', 'Bob'],
+      }),
+    );
+
+    const reader = await VertexPropertyArrowChunkReader.create({
+      vertexInfo,
+      propertyGroup: vertexInfo.propertyGroups[0],
+      prefix: 'http://example.test/graphs/',
+      options: {
+        filter: {
+          op: 'eq',
+          column: 'firstName',
+          value: 'Bob',
+        },
+      },
+    });
+
+    reader.seek(0n);
+    const chunk = await reader.getChunk();
+
+    expect(chunk.schema.fields.map((field) => field.name)).toEqual([
+      GENERAL_PARAMS.kVertexIndexCol,
+      'id',
+      'firstName',
+    ]);
+    expect(chunk.numRows).toBe(1);
+  });
+
+  it('returns to the no-filter path after clearing select and filter constraints', async () => {
+    const vertexInfo = makeVertexInfo();
+    fs.readFileAsSingleUint64.mockResolvedValue(5n);
+    fs.readFileAsTable.mockResolvedValue(
+      arrow.tableFromArrays({
+        _graphArVertexIndex: [0n, 1n],
+        id: [100n, 101n],
+        firstName: ['Ann', 'Bob'],
+      }),
+    );
+
+    const reader = await VertexPropertyArrowChunkReader.create({
+      vertexInfo,
+      propertyGroup: vertexInfo.propertyGroups[0],
+      prefix: 'http://example.test/graphs/',
+      options: {
+        columns: ['firstName'],
+        filter: {
+          op: 'eq',
+          column: 'firstName',
+          value: 'Bob',
+        },
+      },
+    });
+
+    reader.select(null);
+    reader.filter(null);
+    reader.seek(0n);
+    const chunk = await reader.getChunk();
+
+    expect(fs.readFileAsTable).toHaveBeenLastCalledWith(
+      'http://example.test/graphs/vertex/person/id_firstName/chunk0',
+      'parquet',
+    );
+    expect(chunk.schema.fields.map((field) => field.name)).toEqual([
+      GENERAL_PARAMS.kVertexIndexCol,
+      'id',
+      'firstName',
+    ]);
+    expect(chunk.numRows).toBe(2);
   });
 });
