@@ -120,7 +120,7 @@ class VertexPropertyArrowChunkReader {
     }
   }
 
-  async getChunkV2() {
+  async getChunkViaCurrentJsPath() {
     if (this.chunkTable === null) {
       const chunkFilePath = this.vertexInfo.getFilePath(
         this.propertyGroup,
@@ -163,7 +163,18 @@ class VertexPropertyArrowChunkReader {
     return this.chunkTable.slice(Number(rowOffset));
   }
 
+  async getChunkV1() {
+    return await this.getChunkViaCurrentJsPath();
+  }
+
+  async getChunkV2() {
+    return await this.getChunkViaCurrentJsPath();
+  }
+
   async getChunk() {
+    if (this.filterOptions.filter != null) {
+      return await this.getChunkV1();
+    }
     return await this.getChunkV2();
   }
 
