@@ -139,4 +139,124 @@ describe('VertexPropertyArrowChunkReader', () => {
     expect(chunk.getChild('active').get(0)).toBe(false);
     expect(chunk.getChild('contractor').get(0)).toBe(true);
   });
+
+  it('keeps the vertex index column when propertyNames narrows the reader to one property', async () => {
+    const vertexInfo = makeVertexInfo();
+    fs.readFileAsSingleUint64.mockResolvedValue(5n);
+    fs.readFileAsTable.mockResolvedValue(
+      arrow.tableFromArrays({
+        _graphArVertexIndex: [0n, 1n],
+        id: [100n, 101n],
+        firstName: ['Ann', 'Bob'],
+      }),
+    );
+
+    const reader = await VertexPropertyArrowChunkReader.create({
+      vertexInfo,
+      propertyGroup: vertexInfo.propertyGroups[0],
+      propertyNames: ['firstName'],
+      prefix: 'http://example.test/graphs/',
+    });
+
+    reader.seek(0n);
+    const chunk = await reader.getChunk();
+
+    expect(fs.readFileAsTable).toHaveBeenCalledWith(
+      'http://example.test/graphs/vertex/person/id_firstName/chunk0',
+      'parquet',
+      ['_graphArVertexIndex', 'firstName'],
+    );
+    expect(chunk.schema.fields.map((field) => field.name)).toEqual([
+      '_graphArVertexIndex',
+      'firstName',
+    ]);
+    expect(chunk.getChild('_graphArVertexIndex').get(0)).toBe(0n);
+    expect(chunk.getChild('firstName').get(0)).toBe('Ann');
+  });
+
+  it('rejects select columns outside propertyNames', async () => {
+    const vertexInfo = makeVertexInfo();
+    fs.readFileAsSingleUint64.mockResolvedValue(5n);
+
+    const reader = await VertexPropertyArrowChunkReader.create({
+      vertexInfo,
+      propertyGroup: vertexInfo.propertyGroups[0],
+      propertyNames: ['firstName'],
+      prefix: 'http://example.test/graphs/',
+    });
+
+    reader.select(['id']);
+    reader.seek(0n);
+
+    await expect(reader.getChunk()).rejects.toThrow(
+      /Column id is not in select properties/,
+    );
+  });
+
+  it('rejects filter columns outside propertyNames', async () => {
+    const vertexInfo = makeVertexInfo();
+    fs.readFileAsSingleUint64.mockResolvedValue(5n);
+
+    const reader = await VertexPropertyArrowChunkReader.create({
+      vertexInfo,
+      propertyGroup: vertexInfo.propertyGroups[0],
+      propertyNames: ['firstName'],
+      prefix: 'http://example.test/graphs/',
+      options: {
+        filter: {
+          op: 'eq',
+          column: 'id',
+          value: 100n,
+        },
+      },
+    });
+
+    reader.seek(0n);
+
+    await expect(reader.getChunk()).rejects.toThrow(
+      /Column id is not in select properties/,
+    );
+  });
+
+  it('allows filtering within propertyNames while keeping the vertex index column', async () => {
+    const vertexInfo = makeVertexInfo();
+    fs.readFileAsSingleUint64.mockResolvedValue(5n);
+    fs.readFileAsTable.mockResolvedValue(
+      arrow.tableFromArrays({
+        _graphArVertexIndex: [0n, 1n],
+        id: [100n, 101n],
+        firstName: ['Ann', 'Bob'],
+      }),
+    );
+
+    const reader = await VertexPropertyArrowChunkReader.create({
+      vertexInfo,
+      propertyGroup: vertexInfo.propertyGroups[0],
+      propertyNames: ['firstName'],
+      prefix: 'http://example.test/graphs/',
+      options: {
+        filter: {
+          op: 'eq',
+          column: 'firstName',
+          value: 'Bob',
+        },
+      },
+    });
+
+    reader.seek(0n);
+    const chunk = await reader.getChunk();
+
+    expect(fs.readFileAsTable).toHaveBeenCalledWith(
+      'http://example.test/graphs/vertex/person/id_firstName/chunk0',
+      'parquet',
+      ['_graphArVertexIndex', 'firstName'],
+    );
+    expect(chunk.numRows).toBe(1);
+    expect(chunk.schema.fields.map((field) => field.name)).toEqual([
+      '_graphArVertexIndex',
+      'firstName',
+    ]);
+    expect(chunk.getChild('_graphArVertexIndex').get(0)).toBe(1n);
+    expect(chunk.getChild('firstName').get(0)).toBe('Bob');
+  });
 });

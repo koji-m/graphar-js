@@ -132,19 +132,27 @@ class VertexPropertyArrowChunkReader {
         selectedColumns: this.filterOptions.columns ?? null,
         filter: this.filterOptions.filter ?? null,
       });
+      const includeIndexColumn = this.propertyNames.length > 0;
+      const projectedColumnsWithIndex = includeIndexColumn
+        ? [GENERAL_PARAMS.kVertexIndexCol, ...(projectionColumns ?? [])]
+        : projectionColumns;
+      const readColumnsWithIndex =
+        includeIndexColumn && readColumns !== undefined
+          ? [GENERAL_PARAMS.kVertexIndexCol, ...readColumns]
+          : readColumns;
       const path = this.prefix + chunkFilePath;
       this.chunkTable = await readTableWithColumns(
         this.fs,
         path,
         this.propertyGroup.fileType,
-        readColumns,
+        readColumnsWithIndex,
       );
       this.chunkTable = applyFilterToTable(
         this.chunkTable,
         this.filterOptions.filter ?? null,
       );
-      if (projectionColumns !== null) {
-        this.chunkTable = this.chunkTable.select(projectionColumns);
+      if (projectedColumnsWithIndex !== null) {
+        this.chunkTable = this.chunkTable.select(projectedColumnsWithIndex);
       }
       if (this.schema !== null && this.filterOptions.filter == null) {
         this.chunkTable = castTableWithSchema(this.chunkTable, this.schema);
