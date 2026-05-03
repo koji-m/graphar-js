@@ -771,6 +771,43 @@ describe('Graph reader minimal fixture integration', () => {
     expect(begin.equals(clonedBegin)).toBe(false);
   });
 
+  it('rejects current edge reads at the end iterator', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.ORDERED_BY_SOURCE,
+    );
+    const end = await edges.getEndIterator();
+
+    await expect(end.source()).rejects.toThrow(/Edge iterator is at end/);
+    await expect(end.destination()).rejects.toThrow(/Edge iterator is at end/);
+    await expect(end.property('creationDate')).rejects.toThrow(
+      /Edge iterator is at end/,
+    );
+  });
+
+  it('rejects current edge reads from empty edge collections', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.ORDERED_BY_SOURCE,
+      1n,
+      1n,
+    );
+    const begin = await edges.getIterator();
+
+    expect(begin.isEnd()).toBe(true);
+    await expect(begin.source()).rejects.toThrow(/Edge iterator is at end/);
+    await expect(begin.destination()).rejects.toThrow(/Edge iterator is at end/);
+    await expect(begin.property('creationDate')).rejects.toThrow(
+      /Edge iterator is at end/,
+    );
+  });
+
   it('rejects unknown edge properties', async () => {
     const edges = await EdgesCollection.make(
       graphInfo,

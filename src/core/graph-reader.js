@@ -459,6 +459,12 @@ class EdgeIter {
     return this.globalChunkIndex >= this.chunkEnd;
   }
 
+  ensureNotEnd() {
+    if (this.isEnd()) {
+      throw new Error('Edge iterator is at end.');
+    }
+  }
+
   equals(other) {
     return (
       this.globalChunkIndex === other.globalChunkIndex &&
@@ -605,6 +611,7 @@ class EdgeIter {
   }
 
   async source() {
+    this.ensureNotEnd();
     await this.adjListReader.seek(this.curOffset);
     const chunk = await this.adjListReader.getChunk();
     const srcColumn = chunk.batches[0]?.getChildAt(0);
@@ -612,6 +619,7 @@ class EdgeIter {
   }
 
   async destination() {
+    this.ensureNotEnd();
     await this.adjListReader.seek(this.curOffset);
     const chunk = await this.adjListReader.getChunk();
     const dstColumn = chunk.batches[0]?.getChildAt(1);
@@ -619,6 +627,7 @@ class EdgeIter {
   }
 
   async property(property) {
+    this.ensureNotEnd();
     let arrowArray = null;
     for (const reader of this.propertyReaders) {
       await reader.seek(this.curOffset);
