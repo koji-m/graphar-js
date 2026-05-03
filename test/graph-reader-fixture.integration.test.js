@@ -376,6 +376,31 @@ describe('Graph reader minimal fixture integration', () => {
     expect(await vertex.label()).toEqual(['active', 'contractor']);
   });
 
+  it('finds first and last vertices by internal id', async () => {
+    const vertices = await VerticesCollection.make(graphInfo, 'person');
+    const firstVertex = await vertices.find(0);
+    const lastVertex = await vertices.find(4n);
+
+    expect(firstVertex.id()).toBe(0n);
+    expect(await firstVertex.property('id')).toBe(100n);
+    expect(await firstVertex.property('firstName')).toBe('Ann');
+
+    expect(lastVertex.id()).toBe(4n);
+    expect(await lastVertex.property('id')).toBe(104n);
+    expect(await lastVertex.property('firstName')).toBe('Eve');
+  });
+
+  it('rejects vertex find ids outside the internal id range', async () => {
+    const vertices = await VerticesCollection.make(graphInfo, 'person');
+
+    await expect(vertices.find(-1)).rejects.toThrow(
+      /Internal vertex id -1 is out of range: \[0, 5\)/,
+    );
+    await expect(vertices.find(5)).rejects.toThrow(
+      /Internal vertex id 5 is out of range: \[0, 5\)/,
+    );
+  });
+
   it('uses internal ids for find on filtered vertex collections', async () => {
     const activeVertices = await VerticesCollection.verticesWithLabel(
       'active',
@@ -387,6 +412,21 @@ describe('Graph reader minimal fixture integration', () => {
     expect(vertex.id()).toBe(4n);
     expect(await vertex.property('id')).toBe(104n);
     expect(await vertex.label()).toEqual([]);
+  });
+
+  it('rejects filtered vertex find ids outside the internal id range', async () => {
+    const activeVertices = await VerticesCollection.verticesWithLabel(
+      'active',
+      graphInfo,
+      'person',
+    );
+
+    await expect(activeVertices.find(-1n)).rejects.toThrow(
+      /Internal vertex id -1 is out of range: \[0, 5\)/,
+    );
+    await expect(activeVertices.find(5n)).rejects.toThrow(
+      /Internal vertex id 5 is out of range: \[0, 5\)/,
+    );
   });
 
   it('reads vertex labels from label chunks', async () => {

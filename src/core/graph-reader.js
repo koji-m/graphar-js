@@ -308,10 +308,16 @@ class VerticesCollection {
   }
 
   async find(id) {
+    const vertexId = typeof id === 'bigint' ? id : BigInt(id);
+    if (vertexId < 0n || vertexId >= this.vertexNum) {
+      throw new Error(
+        `Internal vertex id ${vertexId} is out of range: [0, ${this.vertexNum})`,
+      );
+    }
     return await Vertex.create({
       vertexInfo: this.vertexInfo,
       prefix: this.prefix,
-      offset: typeof id === 'bigint' ? id : BigInt(id),
+      offset: vertexId,
     });
   }
 
