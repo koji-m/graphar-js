@@ -699,6 +699,47 @@ describe('Graph reader minimal fixture integration', () => {
     }
   });
 
+  it('allows empty edge collections for empty vertex chunk ranges', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.ORDERED_BY_SOURCE,
+      1n,
+      1n,
+    );
+    const begin = await edges.getIterator();
+    const end = await edges.getEndIterator();
+
+    expect(edges.size()).toBe(0n);
+    expect(begin.isEnd()).toBe(true);
+    expect(begin.equals(end)).toBe(true);
+  });
+
+  it.each([
+    ['negative begin', -1n, 1n, /must be non-negative/],
+    ['negative end', 0n, -1n, /must be non-negative/],
+    ['end before begin', 2n, 1n, /begin must be less than or equal to end/],
+    ['end past vertex chunks', 0n, 4n, /is out of range: \[0, 3\)/],
+    ['begin past vertex chunks', 4n, 4n, /is out of range: \[0, 3\)/],
+  ])(
+    'rejects invalid edge collection vertex chunk ranges: %s',
+    async (_caseName, vertexChunkBegin, vertexChunkEnd, expectedError) => {
+      await expect(
+        EdgesCollection.make(
+          graphInfo,
+          'person',
+          'knows',
+          'person',
+          AdjListType.ORDERED_BY_SOURCE,
+          vertexChunkBegin,
+          vertexChunkEnd,
+        ),
+      ).rejects.toThrow(expectedError);
+    },
+  );
+
   it('compares edge iterators by chunk, offset, and adjacency type', async () => {
     const orderedBySourceEdges = await EdgesCollection.make(
       graphInfo,

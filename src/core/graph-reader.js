@@ -1006,8 +1006,31 @@ class EdgesCollection {
       edgeInfo,
       adjListType,
     );
+    vertexChunkBegin =
+      typeof vertexChunkBegin === 'bigint'
+        ? vertexChunkBegin
+        : BigInt(vertexChunkBegin);
+    vertexChunkEnd =
+      typeof vertexChunkEnd === 'bigint'
+        ? vertexChunkEnd
+        : BigInt(vertexChunkEnd);
     if (vertexChunkEnd === MAX_INT64) {
       vertexChunkEnd = vertexChunkNum;
+    }
+    if (vertexChunkBegin < 0n || vertexChunkEnd < 0n) {
+      throw new Error(
+        `Vertex chunk range [${vertexChunkBegin}, ${vertexChunkEnd}) must be non-negative.`,
+      );
+    }
+    if (vertexChunkBegin > vertexChunkEnd) {
+      throw new Error(
+        `Vertex chunk range [${vertexChunkBegin}, ${vertexChunkEnd}) is invalid: begin must be less than or equal to end.`,
+      );
+    }
+    if (vertexChunkEnd > vertexChunkNum) {
+      throw new Error(
+        `Vertex chunk range [${vertexChunkBegin}, ${vertexChunkEnd}) is out of range: [0, ${vertexChunkNum})`,
+      );
     }
     let chunkBegin = 0n;
     let chunkEnd = 0n;
@@ -1015,11 +1038,15 @@ class EdgesCollection {
     const edgeChunkNums = [];
     for (let i = 0; i < vertexChunkNum; i++) {
       edgeChunkNums[i] = await edgeInfo.getEdgeChunkNum(prefix, adjListType, i);
-      if (i < vertexChunkBegin) {
+      const vertexChunkIndex = BigInt(i);
+      if (vertexChunkIndex < vertexChunkBegin) {
         chunkBegin += edgeChunkNums[i];
         chunkEnd += edgeChunkNums[i];
       }
-      if (i >= vertexChunkBegin && i < vertexChunkEnd) {
+      if (
+        vertexChunkIndex >= vertexChunkBegin &&
+        vertexChunkIndex < vertexChunkEnd
+      ) {
         chunkEnd += edgeChunkNums[i];
         const chunkEdgeNum = await edgeInfo.getEdgeNum(prefix, adjListType, i);
         edgeNum += chunkEdgeNum;
