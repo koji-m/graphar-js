@@ -126,6 +126,35 @@ class VertexIter {
     return this;
   }
 
+  currentVertexOffset() {
+    if (this.isEnd()) {
+      throw new Error('Vertex iterator is at end.');
+    }
+    if (this.filteredIds) {
+      return BigInt(this.filteredIds[Number(this.curOffset)]);
+    }
+    return this.curOffset;
+  }
+
+  id() {
+    return this.currentVertexOffset();
+  }
+
+  async property(property) {
+    this.vertex.curOffset = this.currentVertexOffset();
+    return await this.vertex.property(property);
+  }
+
+  async hasLabel(label) {
+    this.vertex.curOffset = this.currentVertexOffset();
+    return await this.vertex.hasLabel(label);
+  }
+
+  async label() {
+    this.vertex.curOffset = this.currentVertexOffset();
+    return await this.vertex.label();
+  }
+
   [Symbol.iterator]() {
     const that = this;
     return {

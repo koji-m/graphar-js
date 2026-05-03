@@ -228,6 +228,39 @@ describe('Graph reader minimal fixture integration', () => {
     expect(skipped.equals(end)).toBe(true);
   });
 
+  it('reads current vertex values through vertex iterators', async () => {
+    const vertices = await VerticesCollection.make(graphInfo, 'person');
+    const iterator = await vertices.getIterator();
+
+    expect(iterator.id()).toBe(0n);
+    expect(await iterator.property('id')).toBe(100n);
+    expect(await iterator.property('firstName')).toBe('Ann');
+    expect(await iterator.label()).toEqual(['active', 'engineer']);
+    expect(await iterator.hasLabel('engineer')).toBe(true);
+
+    iterator.advance(3n);
+
+    expect(iterator.id()).toBe(3n);
+    expect(await iterator.property('id')).toBe(103n);
+    expect(await iterator.property('firstName')).toBe('Dan');
+    expect(await iterator.label()).toEqual(['active', 'contractor']);
+    expect(await iterator.hasLabel('engineer')).toBe(false);
+  });
+
+  it('rejects current vertex reads at the end iterator', async () => {
+    const vertices = await VerticesCollection.make(graphInfo, 'person');
+    const end = await vertices.getEndIterator();
+
+    expect(() => end.id()).toThrow(/Vertex iterator is at end/);
+    await expect(end.property('id')).rejects.toThrow(
+      /Vertex iterator is at end/,
+    );
+    await expect(end.label()).rejects.toThrow(/Vertex iterator is at end/);
+    await expect(end.hasLabel('active')).rejects.toThrow(
+      /Vertex iterator is at end/,
+    );
+  });
+
   it('reports filtered vertex iterator end positions', async () => {
     const vertices = await VerticesCollection.make(graphInfo, 'person');
     const activeVertices = await VerticesCollection.verticesWithLabel(
@@ -312,6 +345,25 @@ describe('Graph reader minimal fixture integration', () => {
 
     expect(skipped.isEnd()).toBe(true);
     expect(skipped.equals(end)).toBe(true);
+  });
+
+  it('reads current filtered vertex values through vertex iterators', async () => {
+    const vertices = await VerticesCollection.make(graphInfo, 'person');
+    const activeVertices = await VerticesCollection.verticesWithLabel(
+      'active',
+      vertices,
+    );
+    const iterator = await activeVertices.getIterator();
+
+    expect(iterator.id()).toBe(0n);
+    expect(await iterator.property('firstName')).toBe('Ann');
+
+    iterator.advance(2n);
+
+    expect(iterator.id()).toBe(3n);
+    expect(await iterator.property('id')).toBe(103n);
+    expect(await iterator.label()).toEqual(['active', 'contractor']);
+    expect(await iterator.hasLabel('contractor')).toBe(true);
   });
 
   it('finds vertices by internal id', async () => {
