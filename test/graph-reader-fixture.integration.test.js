@@ -165,6 +165,58 @@ describe('Graph reader minimal fixture integration', () => {
     expect(contractorVertices.size()).toBe(1n);
   });
 
+  it('reports vertex iterator end positions', async () => {
+    const vertices = await VerticesCollection.make(graphInfo, 'person');
+    const begin = await vertices.getIterator();
+    const end = await vertices.getEndIterator();
+
+    expect(begin.isEnd()).toBe(false);
+    expect(end.isEnd()).toBe(true);
+
+    const visitedIds = [];
+    for (const vertex of begin) {
+      visitedIds.push(vertex.id());
+    }
+
+    expect(visitedIds).toEqual([0n, 1n, 2n, 3n, 4n]);
+    expect(begin.isEnd()).toBe(true);
+  });
+
+  it('reports filtered vertex iterator end positions', async () => {
+    const vertices = await VerticesCollection.make(graphInfo, 'person');
+    const activeVertices = await VerticesCollection.verticesWithLabel(
+      'active',
+      vertices,
+    );
+    const emptyVertices = await VerticesCollection.verticesWithProperty(
+      'firstName',
+      {
+        op: 'eq',
+        column: 'firstName',
+        value: 'NoMatch',
+      },
+      vertices,
+    );
+
+    const activeBegin = await activeVertices.getIterator();
+    const activeEnd = await activeVertices.getEndIterator();
+    const emptyBegin = await emptyVertices.getIterator();
+    const emptyEnd = await emptyVertices.getEndIterator();
+
+    expect(activeBegin.isEnd()).toBe(false);
+    expect(activeEnd.isEnd()).toBe(true);
+    expect(emptyBegin.isEnd()).toBe(true);
+    expect(emptyEnd.isEnd()).toBe(true);
+
+    const activeIds = [];
+    for (const vertex of activeBegin) {
+      activeIds.push(vertex.id());
+    }
+
+    expect(activeIds).toEqual([0n, 1n, 3n]);
+    expect(activeBegin.isEnd()).toBe(true);
+  });
+
   it('finds vertices by internal id', async () => {
     const vertices = await VerticesCollection.make(graphInfo, 'person');
     const vertex = await vertices.find(3);

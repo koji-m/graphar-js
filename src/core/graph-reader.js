@@ -97,34 +97,47 @@ class Vertex {
 }
 
 class VertexIter {
-  constructor(vertex, vertexNum, filteredIds = null) {
-    Object.assign(this, { vertex, vertexNum, filteredIds });
+  constructor(vertex, vertexNum, filteredIds = null, curOffset = 0n) {
+    Object.assign(this, {
+      vertex,
+      vertexNum,
+      filteredIds,
+      curOffset: typeof curOffset === 'bigint' ? curOffset : BigInt(curOffset),
+    });
+  }
+
+  isEnd() {
+    const endOffset = this.filteredIds
+      ? BigInt(this.filteredIds.length)
+      : this.vertexNum;
+    return this.curOffset >= endOffset;
   }
 
   [Symbol.iterator]() {
-    let curOffset = 0n;
     const that = this;
     return {
       next() {
+        if (that.isEnd()) {
+          return { done: true };
+        }
+
         if (that.filteredIds) {
-          if (curOffset >= that.filteredIds.length) {
-            return { done: true };
-          }
-          that.vertex.curOffset = BigInt(that.filteredIds[Number(curOffset++)]);
+          that.vertex.curOffset = BigInt(
+            that.filteredIds[Number(that.curOffset)],
+          );
+          that.curOffset += 1n;
           return {
             value: that.vertex,
             done: false,
           };
         }
 
-        that.vertex.curOffset = curOffset++;
-        if (that.vertex.curOffset < that.vertexNum) {
-          return {
-            value: that.vertex,
-            done: false,
-          };
-        }
-        return { done: true };
+        that.vertex.curOffset = that.curOffset;
+        that.curOffset += 1n;
+        return {
+          value: that.vertex,
+          done: false,
+        };
       },
     };
   }
@@ -267,6 +280,16 @@ class VerticesCollection {
       offset: 0,
     });
     return new VertexIter(vertex, this.vertexNum, this.filteredIds);
+  }
+
+  async getEndIterator() {
+    const endOffset = this.size();
+    const vertex = await Vertex.create({
+      vertexInfo: this.vertexInfo,
+      prefix: this.prefix,
+      offset: endOffset,
+    });
+    return new VertexIter(vertex, this.vertexNum, this.filteredIds, endOffset);
   }
 }
 
