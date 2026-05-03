@@ -559,10 +559,18 @@ class EdgeIter {
     await this.refresh();
   }
 
+  moveToEnd() {
+    this.globalChunkIndex = this.chunkEnd;
+    this.curOffset = 0n;
+    this.vertexChunkIndex = this.indexConverter.edgeChunkNums.length;
+    this.numRowOfChunk = 0;
+  }
+
   async moveToNextChunk() {
     const result = await this.adjListReader.nextChunk();
     this.globalChunkIndex += 1n;
-    if (result.error?.code === 'IndexError') {
+    if (result.error?.code === 'IndexError' || this.isEnd()) {
+      this.moveToEnd();
       return false;
     }
     for (const reader of this.propertyReaders) {
@@ -575,6 +583,10 @@ class EdgeIter {
   }
 
   async advance() {
+    if (this.isEnd()) {
+      return false;
+    }
+
     if (this.numRowOfChunk === 0) {
       await this.adjListReader.seek(this.curOffset);
       this.numRowOfChunk = await this.adjListReader.getRowNumOfChunk();
@@ -600,6 +612,10 @@ class EdgeIter {
       this.curOffset % BigInt(this.chunkSize) === 0n
     ) {
       this.globalChunkIndex += 1n;
+      if (this.isEnd()) {
+        this.moveToEnd();
+        return false;
+      }
       for (const reader of this.propertyReaders) {
         await reader.nextChunk();
       }

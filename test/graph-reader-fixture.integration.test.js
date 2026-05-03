@@ -808,6 +808,76 @@ describe('Graph reader minimal fixture integration', () => {
     );
   });
 
+  it('returns false when advancing edge iterators to or from end', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.ORDERED_BY_SOURCE,
+    );
+    const iterator = await edges.getIterator();
+    const end = await edges.getEndIterator();
+
+    expect(iterator.isEnd()).toBe(false);
+    expect(await iterator.source()).toBe(0n);
+
+    for (let i = 0; i < 5; i++) {
+      expect(await iterator.advance()).toBe(true);
+      expect(iterator.isEnd()).toBe(false);
+    }
+
+    expect(await iterator.source()).toBe(4n);
+    expect(await iterator.destination()).toBe(0n);
+    expect(await iterator.advance()).toBe(false);
+    expect(iterator.isEnd()).toBe(true);
+    expect(iterator.equals(end)).toBe(true);
+    expect(await iterator.advance()).toBe(false);
+    expect(iterator.equals(end)).toBe(true);
+  });
+
+  it('returns false when advancing edge iterators past partial collection ends', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.ORDERED_BY_SOURCE,
+      0n,
+      1n,
+    );
+    const iterator = await edges.getIterator();
+    const end = await edges.getEndIterator();
+
+    expect(edges.size()).toBe(3n);
+    expect(await iterator.source()).toBe(0n);
+    expect(await iterator.advance()).toBe(true);
+    expect(await iterator.source()).toBe(0n);
+    expect(await iterator.advance()).toBe(true);
+    expect(await iterator.source()).toBe(1n);
+    expect(await iterator.advance()).toBe(false);
+    expect(iterator.isEnd()).toBe(true);
+    expect(iterator.equals(end)).toBe(true);
+  });
+
+  it('returns false when advancing empty edge collections', async () => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.ORDERED_BY_SOURCE,
+      1n,
+      1n,
+    );
+    const begin = await edges.getIterator();
+    const end = await edges.getEndIterator();
+
+    expect(begin.isEnd()).toBe(true);
+    expect(await begin.advance()).toBe(false);
+    expect(begin.equals(end)).toBe(true);
+  });
+
   it('rejects unknown edge properties', async () => {
     const edges = await EdgesCollection.make(
       graphInfo,
