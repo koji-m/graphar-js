@@ -182,6 +182,29 @@ describe('Graph reader minimal fixture integration', () => {
     expect(begin.isEnd()).toBe(true);
   });
 
+  it('compares vertex iterators by logical offset', async () => {
+    const vertices = await VerticesCollection.make(graphInfo, 'person');
+    const left = await vertices.getIterator();
+    const right = await vertices.getIterator();
+    const end = await vertices.getEndIterator();
+
+    expect(left.equals(right)).toBe(true);
+    expect(left.notEquals(right)).toBe(false);
+    expect(left.equals(end)).toBe(false);
+    expect(left.notEquals(end)).toBe(true);
+
+    const iterator = left[Symbol.iterator]();
+    iterator.next();
+
+    expect(left.equals(right)).toBe(false);
+
+    for (const _vertex of left) {
+      // Consume the remaining vertices.
+    }
+
+    expect(left.equals(end)).toBe(true);
+  });
+
   it('reports filtered vertex iterator end positions', async () => {
     const vertices = await VerticesCollection.make(graphInfo, 'person');
     const activeVertices = await VerticesCollection.verticesWithLabel(
@@ -215,6 +238,31 @@ describe('Graph reader minimal fixture integration', () => {
 
     expect(activeIds).toEqual([0n, 1n, 3n]);
     expect(activeBegin.isEnd()).toBe(true);
+  });
+
+  it('compares filtered vertex iterators by filtered offset', async () => {
+    const vertices = await VerticesCollection.make(graphInfo, 'person');
+    const activeVertices = await VerticesCollection.verticesWithLabel(
+      'active',
+      vertices,
+    );
+    const left = await activeVertices.getIterator();
+    const right = await activeVertices.getIterator();
+    const end = await activeVertices.getEndIterator();
+
+    expect(left.equals(right)).toBe(true);
+    expect(left.equals(end)).toBe(false);
+
+    const iterator = left[Symbol.iterator]();
+    iterator.next();
+
+    expect(left.equals(right)).toBe(false);
+
+    for (const _vertex of left) {
+      // Consume the remaining filtered vertices.
+    }
+
+    expect(left.equals(end)).toBe(true);
   });
 
   it('finds vertices by internal id', async () => {
@@ -508,6 +556,37 @@ describe('Graph reader minimal fixture integration', () => {
       expect(edges.size()).toBe(6n);
       expect(partialEdges.size()).toBe(2n);
     }
+  });
+
+  it('compares edge iterators by chunk, offset, and adjacency type', async () => {
+    const orderedBySourceEdges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.ORDERED_BY_SOURCE,
+    );
+    const orderedByDestEdges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.ORDERED_BY_DEST,
+    );
+    const begin = await orderedBySourceEdges.getIterator();
+    const clonedBegin = await begin.clone();
+    const end = await orderedBySourceEdges.getEndIterator();
+    const otherAdjListBegin = await orderedByDestEdges.getIterator();
+
+    expect(begin.equals(clonedBegin)).toBe(true);
+    expect(begin.notEquals(clonedBegin)).toBe(false);
+    expect(begin.equals(end)).toBe(false);
+    expect(begin.notEquals(end)).toBe(true);
+    expect(begin.equals(otherAdjListBegin)).toBe(false);
+
+    await clonedBegin.advance();
+
+    expect(begin.equals(clonedBegin)).toBe(false);
   });
 
   it('rejects unknown edge properties', async () => {

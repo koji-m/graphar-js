@@ -113,6 +113,14 @@ class VertexIter {
     return this.curOffset >= endOffset;
   }
 
+  equals(other) {
+    return this.curOffset === other.curOffset;
+  }
+
+  notEquals(other) {
+    return !this.equals(other);
+  }
+
   [Symbol.iterator]() {
     const that = this;
     return {
@@ -409,6 +417,18 @@ class EdgeIter {
 
   isEnd() {
     return this.globalChunkIndex >= this.chunkEnd;
+  }
+
+  equals(other) {
+    return (
+      this.globalChunkIndex === other.globalChunkIndex &&
+      this.curOffset === other.curOffset &&
+      this.adjListType === other.adjListType
+    );
+  }
+
+  notEquals(other) {
+    return !this.equals(other);
   }
 
   async clone() {
