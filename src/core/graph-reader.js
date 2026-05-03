@@ -121,6 +121,11 @@ class VertexIter {
     return !this.equals(other);
   }
 
+  advance(offset = 1n) {
+    this.curOffset += typeof offset === 'bigint' ? offset : BigInt(offset);
+    return this;
+  }
+
   [Symbol.iterator]() {
     const that = this;
     return {
