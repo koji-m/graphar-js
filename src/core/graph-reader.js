@@ -245,6 +245,13 @@ class VerticesCollection {
     );
   }
 
+  size() {
+    if (this.filteredIds) {
+      return BigInt(this.filteredIds.length);
+    }
+    return this.vertexNum;
+  }
+
   async find(id) {
     return await Vertex.create({
       vertexInfo: this.vertexInfo,
@@ -1014,6 +1021,10 @@ class EdgesCollection {
     iterator.vertexChunkIndex = this.indexConverter.edgeChunkNums.length;
     iterator.numRowOfChunk = 0;
     return iterator;
+  }
+
+  size() {
+    return this.edgeNum;
   }
 
   async findSrc(_id, _from) {

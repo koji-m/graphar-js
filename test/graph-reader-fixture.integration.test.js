@@ -148,6 +148,23 @@ describe('Graph reader minimal fixture integration', () => {
     ]);
   });
 
+  it('reports vertex collection sizes', async () => {
+    const vertices = await VerticesCollection.make(graphInfo, 'person');
+    const activeVertices = await VerticesCollection.verticesWithLabel(
+      'active',
+      vertices,
+    );
+    const contractorVertices =
+      await VerticesCollection.verticesWithMultipleLabels(
+        ['active', 'contractor'],
+        vertices,
+      );
+
+    expect(vertices.size()).toBe(5n);
+    expect(activeVertices.size()).toBe(3n);
+    expect(contractorVertices.size()).toBe(1n);
+  });
+
   it('finds vertices by internal id', async () => {
     const vertices = await VerticesCollection.make(graphInfo, 'person');
     const vertex = await vertices.find(3);
@@ -410,6 +427,35 @@ describe('Graph reader minimal fixture integration', () => {
       expected.map(({ src, dst }) => [src, dst]),
     );
     expect(await collectEdgesWithProperties(edges)).toEqual(expected);
+  });
+
+  it('reports edge collection sizes', async () => {
+    for (const adjListType of [
+      AdjListType.ORDERED_BY_SOURCE,
+      AdjListType.ORDERED_BY_DEST,
+      AdjListType.UNORDERED_BY_SOURCE,
+      AdjListType.UNORDERED_BY_DEST,
+    ]) {
+      const edges = await EdgesCollection.make(
+        graphInfo,
+        'person',
+        'knows',
+        'person',
+        adjListType,
+      );
+      const partialEdges = await EdgesCollection.make(
+        graphInfo,
+        'person',
+        'knows',
+        'person',
+        adjListType,
+        1n,
+        2n,
+      );
+
+      expect(edges.size()).toBe(6n);
+      expect(partialEdges.size()).toBe(2n);
+    }
   });
 
   it('rejects unknown edge properties', async () => {
