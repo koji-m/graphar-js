@@ -1,5 +1,42 @@
 import * as arrow from 'apache-arrow';
 
+const FileType = Object.freeze({
+  CSV: 1,
+  JSON: 2,
+  PARQUET: 3,
+  ORC: 4,
+});
+
+function fileTypeFromString(fileType) {
+  switch (fileType) {
+    case 'csv':
+      return FileType.CSV;
+    case 'json':
+      return FileType.JSON;
+    case 'parquet':
+      return FileType.PARQUET;
+    case 'orc':
+      return FileType.ORC;
+    default:
+      throw new Error(`Unsupported file type: ${fileType}`);
+  }
+}
+
+function fileTypeToString(fileType) {
+  switch (fileType) {
+    case FileType.CSV:
+      return 'csv';
+    case FileType.JSON:
+      return 'json';
+    case FileType.PARQUET:
+      return 'parquet';
+    case FileType.ORC:
+      return 'orc';
+    default:
+      throw new Error(`Unsupported file type: ${fileType}`);
+  }
+}
+
 const Type = Object.freeze({
   BOOL: 0,
   INT32: 1,
@@ -165,6 +202,9 @@ export {
   AdjListType,
   adjListTypeToString,
   DataType,
+  FileType,
+  fileTypeFromString,
+  fileTypeToString,
   orderedAlignedToAdjListType,
   Type,
 };

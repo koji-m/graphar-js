@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { DataType, Type } from '../src/core/types.js';
+import {
+  DataType,
+  FileType,
+  Type,
+  fileTypeFromString,
+  fileTypeToString,
+} from '../src/core/types.js';
 
 describe('DataType', () => {
   it.each([
@@ -36,6 +42,24 @@ describe('DataType', () => {
   it('rejects unsupported type names', () => {
     expect(() => DataType.typeNameToDataType('date32')).toThrow(
       /Unsupported data type date32/,
+    );
+  });
+});
+
+describe('FileType', () => {
+  it.each([
+    ['csv', FileType.CSV],
+    ['json', FileType.JSON],
+    ['parquet', FileType.PARQUET],
+    ['orc', FileType.ORC],
+  ])('converts file type name %s', (typeName, fileType) => {
+    expect(fileTypeFromString(typeName)).toBe(fileType);
+    expect(fileTypeToString(fileType)).toBe(typeName);
+  });
+
+  it('rejects unsupported file type names', () => {
+    expect(() => fileTypeFromString('avro')).toThrow(
+      /Unsupported file type: avro/,
     );
   });
 });

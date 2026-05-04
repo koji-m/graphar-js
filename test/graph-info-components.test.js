@@ -5,12 +5,12 @@ import {
   PropertyGroup,
   VertexInfo,
 } from '../src/core/graph-info.js';
-import { AdjListType, Type } from '../src/core/types.js';
+import { AdjListType, FileType, Type } from '../src/core/types.js';
 
 describe('PropertyGroup', () => {
   it('uses joined property names as the default prefix', () => {
     const propertyGroup = new PropertyGroup({
-      fileType: 'parquet',
+      fileType: FileType.PARQUET,
       properties: [{ name: 'firstName' }, { name: 'lastName' }],
     });
 
@@ -18,13 +18,13 @@ describe('PropertyGroup', () => {
       { name: 'firstName' },
       { name: 'lastName' },
     ]);
-    expect(propertyGroup.fileType).toBe('parquet');
+    expect(propertyGroup.fileType).toBe(FileType.PARQUET);
     expect(propertyGroup.prefix).toBe('firstName_lastName/');
   });
 
   it('preserves an explicit prefix', () => {
     const propertyGroup = new PropertyGroup({
-      fileType: 'parquet',
+      fileType: FileType.PARQUET,
       prefix: 'names/',
       properties: [{ name: 'firstName' }],
     });
@@ -37,24 +37,24 @@ describe('AdjacentList', () => {
   it('uses the adjacency list type name as the default prefix', () => {
     const adjacentList = new AdjacentList(
       AdjListType.ORDERED_BY_SOURCE,
-      'parquet',
+      FileType.PARQUET,
       '',
     );
 
     expect(adjacentList.type).toBe(AdjListType.ORDERED_BY_SOURCE);
-    expect(adjacentList.fileType).toBe('parquet');
+    expect(adjacentList.fileType).toBe(FileType.PARQUET);
     expect(adjacentList.prefix).toBe('ordered_by_source/');
   });
 
   it('preserves an explicit prefix', () => {
     const adjacentList = new AdjacentList(
       AdjListType.UNORDERED_BY_DEST,
-      'parquet',
+      FileType.PARQUET,
       'coo_by_dst/',
     );
 
     expect(adjacentList.type).toBe(AdjListType.UNORDERED_BY_DEST);
-    expect(adjacentList.fileType).toBe('parquet');
+    expect(adjacentList.fileType).toBe(FileType.PARQUET);
     expect(adjacentList.prefix).toBe('coo_by_dst/');
   });
 });
@@ -108,7 +108,7 @@ describe('VertexInfo', () => {
 
     const idGroup = vertexInfo.propertyGroups[0];
     expect(idGroup.prefix).toBe('id/');
-    expect(idGroup.fileType).toBe('parquet');
+    expect(idGroup.fileType).toBe(FileType.PARQUET);
     expect(idGroup.properties).toHaveLength(1);
     expect(idGroup.properties[0].name).toBe('id');
     expect(idGroup.properties[0].type.id).toBe(Type.INT64);
@@ -118,7 +118,7 @@ describe('VertexInfo', () => {
 
     const propertyGroup = vertexInfo.propertyGroups[1];
     expect(propertyGroup.prefix).toBe('firstName_feature/');
-    expect(propertyGroup.fileType).toBe('parquet');
+    expect(propertyGroup.fileType).toBe(FileType.PARQUET);
     expect(propertyGroup.properties).toHaveLength(2);
     expect(propertyGroup.properties[0].name).toBe('firstName');
     expect(propertyGroup.properties[0].type.id).toBe(Type.STRING);
@@ -244,7 +244,7 @@ describe('EdgeInfo', () => {
     expect(edgeInfo.propertyGroups).toHaveLength(1);
     const propertyGroup = edgeInfo.propertyGroups[0];
     expect(propertyGroup.prefix).toBe('creationDate/');
-    expect(propertyGroup.fileType).toBe('parquet');
+    expect(propertyGroup.fileType).toBe(FileType.PARQUET);
     expect(propertyGroup.properties).toHaveLength(1);
     expect(propertyGroup.properties[0].name).toBe('creationDate');
     expect(propertyGroup.properties[0].type.id).toBe(Type.STRING);

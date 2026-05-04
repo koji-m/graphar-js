@@ -7,4 +7,4 @@ export {
   VertexInfo,
 } from './core/graph-info.js';
 export { EdgesCollection, VerticesCollection } from './core/graph-reader.js';
-export { AdjListType } from './core/types.js';
+export { AdjListType, FileType } from './core/types.js';

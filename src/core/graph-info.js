@@ -3,6 +3,7 @@ import { InfoVersion } from './info-version.js';
 import {
   adjListTypeToString,
   DataType,
+  fileTypeFromString,
   orderedAlignedToAdjListType,
 } from './types.js';
 
@@ -85,7 +86,7 @@ class VertexInfo {
     const propertyGroups = [];
     for (const propertyGroupMeta of vertexMeta.property_groups ?? []) {
       const prefix = propertyGroupMeta.prefix;
-      const fileType = propertyGroupMeta.file_type;
+      const fileType = fileTypeFromString(propertyGroupMeta.file_type);
       const properties = [];
       for (const propertyMeta of propertyGroupMeta.properties ?? []) {
         const name = propertyMeta.name;
@@ -174,7 +175,7 @@ class EdgeInfo {
           const ordered = adjList.ordered;
           const aligned = adjList.aligned_by;
           const adjListType = orderedAlignedToAdjListType(ordered, aligned);
-          const fileType = adjList.file_type;
+          const fileType = fileTypeFromString(adjList.file_type);
           const adjListPrefix = adjList.prefix ?? '';
           return new AdjacentList(adjListType, fileType, adjListPrefix);
         })
@@ -183,7 +184,7 @@ class EdgeInfo {
     const propertyGroups = Array.isArray(edgeMeta.property_groups)
       ? edgeMeta.property_groups.map((propertyGroupMeta) => {
           const prefix = propertyGroupMeta.prefix;
-          const fileType = propertyGroupMeta.file_type;
+          const fileType = fileTypeFromString(propertyGroupMeta.file_type);
           const properties = propertyGroupMeta.properties
             ? propertyGroupMeta.properties.map((propertyMeta) => {
                 const name = propertyMeta.name;

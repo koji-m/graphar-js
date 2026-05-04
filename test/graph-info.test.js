@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GraphInfo } from '../src/core/graph-info.js';
-import { AdjListType, Type } from '../src/core/types.js';
+import { AdjListType, FileType, Type } from '../src/core/types.js';
 
 const files = new Map([
   [
@@ -113,6 +113,7 @@ describe('GraphInfo', () => {
     const vertexInfo = graphInfo.getVertexInfo('person');
     expect(vertexInfo.type).toBe('person');
     expect(vertexInfo.chunkSize).toBe(100);
+    expect(vertexInfo.propertyGroups[0].fileType).toBe(FileType.PARQUET);
     expect(vertexInfo.propertyGroups[0].properties[0].type.id).toBe(Type.INT64);
 
     const edgeInfo = graphInfo.getEdgeInfo('person', 'knows', 'person');
@@ -120,6 +121,8 @@ describe('GraphInfo', () => {
     expect(edgeInfo.hasAdjacentListType(AdjListType.ORDERED_BY_SOURCE)).toBe(
       true,
     );
+    expect(edgeInfo.adjacentList[0].fileType).toBe(FileType.PARQUET);
+    expect(edgeInfo.propertyGroups[0].fileType).toBe(FileType.PARQUET);
     expect(edgeInfo.propertyGroups[0].properties[0].type.id).toBe(Type.STRING);
   });
 
