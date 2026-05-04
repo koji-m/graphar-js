@@ -6,7 +6,10 @@ import {
 } from './chunk-reader.js';
 import { evaluateFilterExpression } from './filter.js';
 import { fileSystemFromUriOrPath } from './filesystem.js';
-import { getVertexChunkNumFromEdge } from './reader-util.js';
+import {
+  getVertexChunkNumFromEdge,
+  getVertexNumFromVertex,
+} from './reader-util.js';
 import { AdjListType } from './types.js';
 import { IndexConverter, MAX_INT64 } from './util.js';
 
@@ -1007,6 +1010,8 @@ class EdgesCollection {
     edgeNum,
     adjListType,
     indexConverter,
+    srcVertexNum,
+    dstVertexNum,
   ) {
     Object.assign(this, {
       edgeInfo,
@@ -1016,6 +1021,8 @@ class EdgesCollection {
       edgeNum,
       adjListType,
       indexConverter,
+      srcVertexNum,
+      dstVertexNum,
     });
   }
 
@@ -1102,6 +1109,16 @@ class EdgesCollection {
         `Adjacent list type ${adjListType} not found in edge info.`,
       );
     }
+    const srcVertexInfo = graphInfo.getVertexInfo(srcType);
+    const dstVertexInfo = graphInfo.getVertexInfo(dstType);
+    const [srcVertexNum, dstVertexNum] = await Promise.all([
+      srcVertexInfo
+        ? getVertexNumFromVertex(graphInfo.prefix, srcVertexInfo)
+        : MAX_INT64,
+      dstVertexInfo
+        ? getVertexNumFromVertex(graphInfo.prefix, dstVertexInfo)
+        : MAX_INT64,
+    ]);
     switch (adjListType) {
       case AdjListType.ORDERED_BY_SOURCE:
         return await OBSEdgesCollection.create(
@@ -1109,6 +1126,8 @@ class EdgesCollection {
           graphInfo.prefix,
           vertexChunkBegin,
           vertexChunkEnd,
+          srcVertexNum,
+          dstVertexNum,
         );
       case AdjListType.ORDERED_BY_DEST:
         return await OBDEdgesCollection.create(
@@ -1116,6 +1135,8 @@ class EdgesCollection {
           graphInfo.prefix,
           vertexChunkBegin,
           vertexChunkEnd,
+          srcVertexNum,
+          dstVertexNum,
         );
       case AdjListType.UNORDERED_BY_SOURCE:
         return await UBSEdgesCollection.create(
@@ -1123,6 +1144,8 @@ class EdgesCollection {
           graphInfo.prefix,
           vertexChunkBegin,
           vertexChunkEnd,
+          srcVertexNum,
+          dstVertexNum,
         );
       case AdjListType.UNORDERED_BY_DEST:
         return await UBDEdgesCollection.create(
@@ -1130,6 +1153,8 @@ class EdgesCollection {
           graphInfo.prefix,
           vertexChunkBegin,
           vertexChunkEnd,
+          srcVertexNum,
+          dstVertexNum,
         );
       default:
         throw new Error('Unknown adjacent list type');
@@ -1162,17 +1187,48 @@ class EdgesCollection {
     return this.edgeNum;
   }
 
-  async findSrc(_id, _from) {
-    throw new Error('findSrc must be implemented by subclasses.');
+  isValidSrcId(id) {
+    return id >= 0n && id < this.srcVertexNum;
   }
 
-  async findDst(_id, _from) {
-    throw new Error('findDst must be implemented by subclasses.');
+  isValidDstId(id) {
+    return id >= 0n && id < this.dstVertexNum;
+  }
+
+  async findSrc(id, from) {
+    const seekId = typeof id === 'bigint' ? id : BigInt(id);
+    if (!this.isValidSrcId(seekId)) {
+      return await this.getEndIterator();
+    }
+    const iterator = await from.clone();
+    if (await iterator.firstSrc(from, seekId)) {
+      return iterator;
+    }
+    return await this.getEndIterator();
+  }
+
+  async findDst(id, from) {
+    const seekId = typeof id === 'bigint' ? id : BigInt(id);
+    if (!this.isValidDstId(seekId)) {
+      return await this.getEndIterator();
+    }
+    const iterator = await from.clone();
+    if (await iterator.firstDst(from, seekId)) {
+      return iterator;
+    }
+    return await this.getEndIterator();
   }
 }
 
 class OBSEdgesCollection extends EdgesCollection {
-  static async create(edgeInfo, prefix, vertexChunkBegin, vertexChunkEnd) {
+  static async create(
+    edgeInfo,
+    prefix,
+    vertexChunkBegin,
+    vertexChunkEnd,
+    srcVertexNum,
+    dstVertexNum,
+  ) {
     const { chunkBegin, chunkEnd, edgeNum, indexConverter } =
       await EdgesCollection.init(
         edgeInfo,
@@ -1189,28 +1245,21 @@ class OBSEdgesCollection extends EdgesCollection {
       edgeNum,
       AdjListType.ORDERED_BY_SOURCE,
       indexConverter,
+      srcVertexNum,
+      dstVertexNum,
     );
-  }
-
-  async findSrc(id, from) {
-    const iterator = await from.clone();
-    if (await iterator.firstSrc(from, id)) {
-      return iterator;
-    }
-    return await this.getEndIterator();
-  }
-
-  async findDst(id, from) {
-    const iterator = await from.clone();
-    if (await iterator.firstDst(from, id)) {
-      return iterator;
-    }
-    return await this.getEndIterator();
   }
 }
 
 class OBDEdgesCollection extends EdgesCollection {
-  static async create(edgeInfo, prefix, vertexChunkBegin, vertexChunkEnd) {
+  static async create(
+    edgeInfo,
+    prefix,
+    vertexChunkBegin,
+    vertexChunkEnd,
+    srcVertexNum,
+    dstVertexNum,
+  ) {
     const { chunkBegin, chunkEnd, edgeNum, indexConverter } =
       await EdgesCollection.init(
         edgeInfo,
@@ -1227,28 +1276,21 @@ class OBDEdgesCollection extends EdgesCollection {
       edgeNum,
       AdjListType.ORDERED_BY_DEST,
       indexConverter,
+      srcVertexNum,
+      dstVertexNum,
     );
-  }
-
-  async findSrc(id, from) {
-    const iterator = await from.clone();
-    if (await iterator.firstSrc(from, id)) {
-      return iterator;
-    }
-    return await this.getEndIterator();
-  }
-
-  async findDst(id, from) {
-    const iterator = await from.clone();
-    if (await iterator.firstDst(from, id)) {
-      return iterator;
-    }
-    return await this.getEndIterator();
   }
 }
 
 class UBSEdgesCollection extends EdgesCollection {
-  static async create(edgeInfo, prefix, vertexChunkBegin, vertexChunkEnd) {
+  static async create(
+    edgeInfo,
+    prefix,
+    vertexChunkBegin,
+    vertexChunkEnd,
+    srcVertexNum,
+    dstVertexNum,
+  ) {
     const { chunkBegin, chunkEnd, edgeNum, indexConverter } =
       await EdgesCollection.init(
         edgeInfo,
@@ -1265,28 +1307,21 @@ class UBSEdgesCollection extends EdgesCollection {
       edgeNum,
       AdjListType.UNORDERED_BY_SOURCE,
       indexConverter,
+      srcVertexNum,
+      dstVertexNum,
     );
-  }
-
-  async findSrc(id, from) {
-    const iterator = await from.clone();
-    if (await iterator.firstSrc(from, id)) {
-      return iterator;
-    }
-    return await this.getEndIterator();
-  }
-
-  async findDst(id, from) {
-    const iterator = await from.clone();
-    if (await iterator.firstDst(from, id)) {
-      return iterator;
-    }
-    return await this.getEndIterator();
   }
 }
 
 class UBDEdgesCollection extends EdgesCollection {
-  static async create(edgeInfo, prefix, vertexChunkBegin, vertexChunkEnd) {
+  static async create(
+    edgeInfo,
+    prefix,
+    vertexChunkBegin,
+    vertexChunkEnd,
+    srcVertexNum,
+    dstVertexNum,
+  ) {
     const { chunkBegin, chunkEnd, edgeNum, indexConverter } =
       await EdgesCollection.init(
         edgeInfo,
@@ -1303,23 +1338,9 @@ class UBDEdgesCollection extends EdgesCollection {
       edgeNum,
       AdjListType.UNORDERED_BY_DEST,
       indexConverter,
+      srcVertexNum,
+      dstVertexNum,
     );
-  }
-
-  async findSrc(id, from) {
-    const iterator = await from.clone();
-    if (await iterator.firstSrc(from, id)) {
-      return iterator;
-    }
-    return await this.getEndIterator();
-  }
-
-  async findDst(id, from) {
-    const iterator = await from.clone();
-    if (await iterator.firstDst(from, id)) {
-      return iterator;
-    }
-    return await this.getEndIterator();
   }
 }
 

@@ -896,6 +896,32 @@ describe('Graph reader minimal fixture integration', () => {
     }
   });
 
+  it.each([
+    AdjListType.ORDERED_BY_SOURCE,
+    AdjListType.ORDERED_BY_DEST,
+    AdjListType.UNORDERED_BY_SOURCE,
+    AdjListType.UNORDERED_BY_DEST,
+  ])('returns end for out-of-range edge find ids in %s collections', async (adjListType) => {
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      adjListType,
+    );
+    const begin = await edges.getIterator();
+
+    const negativeSrc = await edges.findSrc(-1n, begin);
+    const negativeDst = await edges.findDst(-1n, begin);
+    const pastEndSrc = await edges.findSrc(5n, begin);
+    const pastEndDst = await edges.findDst(5n, begin);
+
+    expect(negativeSrc.isEnd()).toBe(true);
+    expect(negativeDst.isEnd()).toBe(true);
+    expect(pastEndSrc.isEnd()).toBe(true);
+    expect(pastEndDst.isEnd()).toBe(true);
+  });
+
   it('tracks consecutive sources with ordered_by_source edge iterators', async () => {
     const edges = await EdgesCollection.make(
       graphInfo,
