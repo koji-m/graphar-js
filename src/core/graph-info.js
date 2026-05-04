@@ -1,10 +1,13 @@
 import yaml from 'js-yaml';
 import { InfoVersion } from './info-version.js';
 import {
+  AdjListType,
   adjListTypeToString,
   DataType,
+  FileType,
   fileTypeFromString,
   orderedAlignedToAdjListType,
+  Type,
 } from './types.js';
 
 function pathToDirectory(path) {
@@ -40,6 +43,14 @@ function resolveGraphPrefix(prefix, defaultPrefix) {
   return new URL(prefix, defaultPrefix).href;
 }
 
+function isSupportedStorageFileType(fileType) {
+  return (
+    fileType === FileType.CSV ||
+    fileType === FileType.PARQUET ||
+    fileType === FileType.ORC
+  );
+}
+
 class Property {
   constructor({ name, type, isPrimary, isNullable, cardinality }) {
     Object.assign(this, { name, type, isPrimary, cardinality });
@@ -54,6 +65,44 @@ class PropertyGroup {
       this.prefix = `${this.properties.map((prop) => prop.name).join('_')}/`;
     }
   }
+
+  hasProperty(propertyName) {
+    return this.properties.some((property) => property.name === propertyName);
+  }
+
+  isValidated() {
+    if (
+      !this.prefix ||
+      !isSupportedStorageFileType(this.fileType) ||
+      !Array.isArray(this.properties) ||
+      this.properties.length === 0
+    ) {
+      return false;
+    }
+
+    const propertyNames = new Set();
+    for (const property of this.properties) {
+      if (!property.name || !property.type) {
+        return false;
+      }
+      if (propertyNames.has(property.name)) {
+        return false;
+      }
+      propertyNames.add(property.name);
+
+      if (property.type.id === Type.LIST && this.fileType === FileType.CSV) {
+        return false;
+      }
+      if (
+        property.cardinality !== 'single' &&
+        this.fileType === FileType.CSV
+      ) {
+        return false;
+      }
+    }
+
+    return true;
+  }
 }
 
 class AdjacentList {
@@ -62,6 +111,21 @@ class AdjacentList {
     if (this.prefix.length === 0) {
       this.prefix = `${adjListTypeToString(this.type)}/`;
     }
+  }
+
+  isValidated() {
+    if (
+      this.type !== AdjListType.UNORDERED_BY_SOURCE &&
+      this.type !== AdjListType.UNORDERED_BY_DEST &&
+      this.type !== AdjListType.ORDERED_BY_SOURCE &&
+      this.type !== AdjListType.ORDERED_BY_DEST
+    ) {
+      return false;
+    }
+    if (!this.prefix || !isSupportedStorageFileType(this.fileType)) {
+      return false;
+    }
+    return true;
   }
 }
 
@@ -100,7 +164,7 @@ class VertexInfo {
       }
       propertyGroups.push(new PropertyGroup({ properties, fileType, prefix }));
     }
-    return new VertexInfo({
+    const vertexInfo = new VertexInfo({
       type,
       chunkSize,
       prefix,
@@ -108,6 +172,31 @@ class VertexInfo {
       labels,
       propertyGroups,
     });
+    if (!vertexInfo.isValidated()) {
+      throw new Error('Invalid vertex info metadata.');
+    }
+    return vertexInfo;
+  }
+
+  isValidated() {
+    if (!this.type || this.chunkSize <= 0 || !this.prefix) {
+      return false;
+    }
+
+    const propertyNames = new Set();
+    for (const propertyGroup of this.propertyGroups) {
+      if (!propertyGroup || !propertyGroup.isValidated()) {
+        return false;
+      }
+      for (const property of propertyGroup.properties) {
+        if (propertyNames.has(property.name)) {
+          return false;
+        }
+        propertyNames.add(property.name);
+      }
+    }
+
+    return true;
   }
 
   getVerticesNumFilePath() {
@@ -194,11 +283,6 @@ class EdgeInfo {
                 const isPrimary = propertyMeta.is_primary ?? false;
                 const isNullable = propertyMeta.is_nullable ?? true;
                 const cardinality = propertyMeta.cardinality ?? 'single';
-                if (cardinality !== undefined && cardinality !== 'single') {
-                  throw new Error(
-                    `Unsupported cardinality: ${cardinality} for edge property`,
-                  );
-                }
                 return new Property({
                   name,
                   type,
@@ -212,7 +296,7 @@ class EdgeInfo {
         })
       : [];
 
-    return new EdgeInfo({
+    const edgeInfo = new EdgeInfo({
       srcType,
       edgeType,
       dstType,
@@ -225,6 +309,55 @@ class EdgeInfo {
       adjacentList,
       propertyGroups,
     });
+    if (!edgeInfo.isValidated()) {
+      throw new Error('Invalid edge info metadata.');
+    }
+    return edgeInfo;
+  }
+
+  isValidated() {
+    if (
+      !this.srcType ||
+      !this.edgeType ||
+      !this.dstType ||
+      this.chunkSize <= 0 ||
+      this.srcChunkSize <= 0 ||
+      this.dstChunkSize <= 0 ||
+      !this.prefix ||
+      !Array.isArray(this.adjacentList) ||
+      this.adjacentList.length === 0
+    ) {
+      return false;
+    }
+
+    const adjListTypes = new Set();
+    for (const adjList of this.adjacentList) {
+      if (!adjList || !adjList.isValidated()) {
+        return false;
+      }
+      adjListTypes.add(adjList.type);
+    }
+    if (adjListTypes.size !== this.adjacentList.length) {
+      return false;
+    }
+
+    const propertyNames = new Set();
+    for (const propertyGroup of this.propertyGroups) {
+      if (!propertyGroup || !propertyGroup.isValidated()) {
+        return false;
+      }
+      for (const property of propertyGroup.properties) {
+        if (property.cardinality !== 'single') {
+          return false;
+        }
+        if (propertyNames.has(property.name)) {
+          return false;
+        }
+        propertyNames.add(property.name);
+      }
+    }
+
+    return true;
   }
 
   getVerticesNumFilePath(adjListType) {

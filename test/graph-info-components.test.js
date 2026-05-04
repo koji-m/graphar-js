@@ -31,6 +31,60 @@ describe('PropertyGroup', () => {
 
     expect(propertyGroup.prefix).toBe('names/');
   });
+
+  it('validates parquet property groups', () => {
+    const propertyGroup = new PropertyGroup({
+      fileType: FileType.PARQUET,
+      properties: [
+        {
+          name: 'score',
+          type: { id: Type.FLOAT },
+          cardinality: 'single',
+        },
+      ],
+    });
+
+    expect(propertyGroup.isValidated()).toBe(true);
+  });
+
+  it('rejects json property groups', () => {
+    const propertyGroup = new PropertyGroup({
+      fileType: FileType.JSON,
+      properties: [{ name: 'score', type: { id: Type.FLOAT }, cardinality: 'single' }],
+    });
+
+    expect(propertyGroup.isValidated()).toBe(false);
+  });
+
+  it('rejects csv property groups with list type', () => {
+    const propertyGroup = new PropertyGroup({
+      fileType: FileType.CSV,
+      properties: [
+        {
+          name: 'feature',
+          type: { id: Type.LIST },
+          cardinality: 'single',
+        },
+      ],
+    });
+
+    expect(propertyGroup.isValidated()).toBe(false);
+  });
+
+  it('rejects csv property groups with non-single cardinality', () => {
+    const propertyGroup = new PropertyGroup({
+      fileType: FileType.CSV,
+      properties: [
+        {
+          name: 'tags',
+          type: { id: Type.STRING },
+          cardinality: 'list',
+        },
+      ],
+    });
+
+    expect(propertyGroup.isValidated()).toBe(false);
+  });
 });
 
 describe('AdjacentList', () => {
@@ -56,6 +110,16 @@ describe('AdjacentList', () => {
     expect(adjacentList.type).toBe(AdjListType.UNORDERED_BY_DEST);
     expect(adjacentList.fileType).toBe(FileType.PARQUET);
     expect(adjacentList.prefix).toBe('coo_by_dst/');
+  });
+
+  it('rejects unsupported file types in adjacent lists', () => {
+    const adjacentList = new AdjacentList(
+      AdjListType.ORDERED_BY_SOURCE,
+      FileType.JSON,
+      'ordered_by_source/',
+    );
+
+    expect(adjacentList.isValidated()).toBe(false);
   });
 });
 
@@ -168,6 +232,67 @@ describe('VertexInfo', () => {
     expect(vertexInfo.getVerticesNumFilePath()).toBe(
       'test_vertex/vertex_count',
     );
+  });
+
+  it('rejects duplicate property names across property groups', () => {
+    expect(() =>
+      VertexInfo.load({
+        type: 'person',
+        chunk_size: 100,
+        prefix: 'vertex/person/',
+        property_groups: [
+          {
+            file_type: 'parquet',
+            properties: [{ name: 'id', data_type: 'int64', is_primary: true }],
+          },
+          {
+            file_type: 'parquet',
+            properties: [{ name: 'id', data_type: 'string', is_primary: false }],
+          },
+        ],
+        version: 'gar/v1',
+      }),
+    ).toThrow(/Invalid vertex info metadata/);
+  });
+
+  it('rejects csv property groups with list type during load', () => {
+    expect(() =>
+      VertexInfo.load({
+        type: 'person',
+        chunk_size: 100,
+        prefix: 'vertex/person/',
+        property_groups: [
+          {
+            file_type: 'csv',
+            properties: [
+              {
+                name: 'feature',
+                data_type: 'list<float>',
+                is_primary: false,
+              },
+            ],
+          },
+        ],
+        version: 'gar/v1',
+      }),
+    ).toThrow(/Invalid vertex info metadata/);
+  });
+
+  it('rejects unsupported storage file types during load', () => {
+    expect(() =>
+      VertexInfo.load({
+        type: 'person',
+        chunk_size: 100,
+        prefix: 'vertex/person/',
+        property_groups: [
+          {
+            file_type: 'json',
+            properties: [{ name: 'id', data_type: 'int64', is_primary: true }],
+          },
+        ],
+        version: 'gar/v1',
+      }),
+    ).toThrow(/Invalid vertex info metadata/);
   });
 });
 
@@ -358,6 +483,43 @@ describe('EdgeInfo', () => {
           },
         ],
       }),
-    ).toThrow(/Unsupported cardinality: list for edge property/);
+    ).toThrow(/Invalid edge info metadata/);
+  });
+
+  it('rejects duplicate adjacent list types', () => {
+    expect(() =>
+      EdgeInfo.load({
+        src_type: 'person',
+        edge_type: 'knows',
+        dst_type: 'person',
+        chunk_size: 1024,
+        src_chunk_size: 100,
+        dst_chunk_size: 100,
+        directed: true,
+        prefix: 'edge/person_knows_person/',
+        adj_lists: [
+          { ordered: true, aligned_by: 'src', file_type: 'parquet' },
+          { ordered: true, aligned_by: 'src', file_type: 'parquet' },
+        ],
+      }),
+    ).toThrow(/Invalid edge info metadata/);
+  });
+
+  it('rejects unsupported storage file types in adjacent lists during load', () => {
+    expect(() =>
+      EdgeInfo.load({
+        src_type: 'person',
+        edge_type: 'knows',
+        dst_type: 'person',
+        chunk_size: 1024,
+        src_chunk_size: 100,
+        dst_chunk_size: 100,
+        directed: true,
+        prefix: 'edge/person_knows_person/',
+        adj_lists: [
+          { ordered: true, aligned_by: 'src', file_type: 'json' },
+        ],
+      }),
+    ).toThrow(/Invalid edge info metadata/);
   });
 });

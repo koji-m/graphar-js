@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { VertexPropertyArrowChunkReader } from '../src/core/chunk-reader.js';
 import GENERAL_PARAMS from '../src/core/general-params.js';
 import { VertexInfo } from '../src/core/graph-info.js';
+import { FileType } from '../src/core/types.js';
 
 const fs = {
   readFileAsSingleUint64: vi.fn(),
@@ -71,7 +72,7 @@ describe('VertexPropertyArrowChunkReader', () => {
 
     expect(fs.readFileAsTable).toHaveBeenCalledWith(
       'http://example.test/graphs/vertex/person/id_firstName/chunk0',
-      'parquet',
+      FileType.PARQUET,
       ['firstName'],
     );
     expect(chunk.schema.fields.map((field) => field.name)).toEqual(['firstName']);
@@ -164,7 +165,7 @@ describe('VertexPropertyArrowChunkReader', () => {
 
     expect(fs.readFileAsTable).toHaveBeenCalledWith(
       'http://example.test/graphs/vertex/person/id_firstName/chunk0',
-      'parquet',
+      FileType.PARQUET,
       ['_graphArVertexIndex', 'firstName'],
     );
     expect(chunk.schema.fields.map((field) => field.name)).toEqual([
@@ -249,7 +250,7 @@ describe('VertexPropertyArrowChunkReader', () => {
 
     expect(fs.readFileAsTable).toHaveBeenCalledWith(
       'http://example.test/graphs/vertex/person/id_firstName/chunk0',
-      'parquet',
+      FileType.PARQUET,
       ['_graphArVertexIndex', 'firstName'],
     );
     expect(chunk.numRows).toBe(1);
@@ -384,7 +385,7 @@ describe('VertexPropertyArrowChunkReader', () => {
 
     expect(fs.readFileAsTable).toHaveBeenLastCalledWith(
       'http://example.test/graphs/vertex/person/id_firstName/chunk0',
-      'parquet',
+      FileType.PARQUET,
     );
     expect(chunk.schema.fields.map((field) => field.name)).toEqual([
       GENERAL_PARAMS.kVertexIndexCol,

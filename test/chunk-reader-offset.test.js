@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdjListOffsetArrowChunkReader } from '../src/core/chunk-reader.js';
 import { EdgeInfo } from '../src/core/graph-info.js';
-import { AdjListType } from '../src/core/types.js';
+import { AdjListType, FileType } from '../src/core/types.js';
 
 const fs = {
   readFileAsSingleUint64: vi.fn(),
@@ -96,7 +96,7 @@ describe('AdjListOffsetArrowChunkReader', () => {
 
     expect(fs.readFileAsTable).toHaveBeenCalledWith(
       'http://example.test/graphs/edge/person_knows_person/ordered_by_source/offset/chunk0',
-      'parquet',
+      FileType.PARQUET,
     );
     expect(table.slice).toHaveBeenCalledWith(1);
     expect(chunk.get(0)).toBe(0n);

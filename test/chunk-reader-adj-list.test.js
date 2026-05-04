@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdjListArrowChunkReader } from '../src/core/chunk-reader.js';
 import { EdgeInfo } from '../src/core/graph-info.js';
-import { AdjListType } from '../src/core/types.js';
+import { AdjListType, FileType } from '../src/core/types.js';
 
 const fs = {
   readFileAsSingleUint64: vi.fn(),
@@ -82,7 +82,7 @@ describe('AdjListArrowChunkReader seekSrc/seekDst', () => {
     expect(reader.chunkIndex).toBe(0);
     expect(fs.readFileAsTable).toHaveBeenCalledWith(
       'http://example.test/graphs/edge/person_knows_person/ordered_by_source/offset/chunk0',
-      'parquet',
+      FileType.PARQUET,
     );
   });
 
@@ -113,7 +113,7 @@ describe('AdjListArrowChunkReader seekSrc/seekDst', () => {
     expect(reader.seekOffset).toBe(20n);
     expect(fs.readFileAsTable).toHaveBeenCalledWith(
       'http://example.test/graphs/edge/person_knows_person/ordered_by_dest/offset/chunk0',
-      'parquet',
+      FileType.PARQUET,
     );
   });
 

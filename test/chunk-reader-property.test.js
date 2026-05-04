@@ -2,7 +2,7 @@ import * as arrow from 'apache-arrow';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdjListPropertyArrowChunkReader } from '../src/core/chunk-reader.js';
 import { EdgeInfo } from '../src/core/graph-info.js';
-import { AdjListType } from '../src/core/types.js';
+import { AdjListType, FileType } from '../src/core/types.js';
 
 const fs = {
   readFileAsSingleUint64: vi.fn(),
@@ -103,7 +103,7 @@ describe('AdjListPropertyArrowChunkReader', () => {
     expect(reader.seekOffset).toBe(20n);
     expect(fs.readFileAsTable).toHaveBeenCalledWith(
       'http://example.test/graphs/edge/person_knows_person/ordered_by_dest/offset/chunk0',
-      'parquet',
+      FileType.PARQUET,
     );
   });
 
@@ -130,7 +130,7 @@ describe('AdjListPropertyArrowChunkReader', () => {
 
     expect(fs.readFileAsTable).toHaveBeenLastCalledWith(
       'http://example.test/graphs/edge/person_knows_person/unordered_by_source/creationDate/part1/chunk0',
-      'parquet',
+      FileType.PARQUET,
     );
     expect(chunk.getChild('creationDate').get(0)).toBe('2020-01-04');
   });
@@ -183,7 +183,7 @@ describe('AdjListPropertyArrowChunkReader', () => {
 
     expect(fs.readFileAsTable).toHaveBeenLastCalledWith(
       'http://example.test/graphs/edge/person_knows_person/unordered_by_source/creationDate/part1/chunk0',
-      'parquet',
+      FileType.PARQUET,
       ['creationDate'],
     );
     expect(chunk.schema.fields.map((field) => field.name)).toEqual([

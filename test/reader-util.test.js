@@ -2,7 +2,7 @@ import * as arrow from 'apache-arrow';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EdgeInfo } from '../src/core/graph-info.js';
 import { getAdjListOffsetOfVertex } from '../src/core/reader-util.js';
-import { AdjListType } from '../src/core/types.js';
+import { AdjListType, FileType } from '../src/core/types.js';
 
 const fs = {
   readFileAsTable: vi.fn(),
@@ -54,7 +54,7 @@ describe('getAdjListOffsetOfVertex', () => {
     expect(endOffset).toBe(8n);
     expect(fs.readFileAsTable).toHaveBeenCalledWith(
       'http://example.test/graphs/edge/person_knows_person/ordered_by_source/offset/chunk0',
-      'parquet',
+      FileType.PARQUET,
     );
   });
 
@@ -95,7 +95,7 @@ describe('getAdjListOffsetOfVertex', () => {
     expect(endOffset).toBe(25n);
     expect(fs.readFileAsTable).toHaveBeenCalledWith(
       'http://example.test/graphs/edge/person_knows_person/ordered_by_dest/offset/chunk0',
-      'parquet',
+      FileType.PARQUET,
     );
   });
 
