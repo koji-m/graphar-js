@@ -51,8 +51,8 @@ function stubFixtureFetch(rootDir, baseUrl) {
 async function collectEdges(collection) {
   const iterator = await collection.getIterator();
   const edges = [];
-  for await (const edge of iterator) {
-    edges.push([await edge.source(), await edge.destination()]);
+  for await (const edgeIter of iterator) {
+    edges.push([await edgeIter.source(), await edgeIter.destination()]);
   }
   return edges;
 }
@@ -60,11 +60,11 @@ async function collectEdges(collection) {
 async function collectEdgesWithProperties(collection) {
   const iterator = await collection.getIterator();
   const edges = [];
-  for await (const edge of iterator) {
+  for await (const edgeIter of iterator) {
     edges.push({
-      src: await edge.source(),
-      dst: await edge.destination(),
-      creationDate: await edge.property('creationDate'),
+      src: await edgeIter.source(),
+      dst: await edgeIter.destination(),
+      creationDate: await edgeIter.property('creationDate'),
     });
   }
   return edges;
@@ -362,7 +362,7 @@ describe('Graph reader minimal fixture integration', () => {
     expect(begin.equals(clonedBegin)).toBe(false);
   });
 
-  it('rejects current edge reads at the end iterator', async () => {
+  it('rejects current edge iterator accessor reads at the end iterator', async () => {
     const edges = await EdgesCollection.make(
       graphInfo,
       'person',
@@ -379,7 +379,7 @@ describe('Graph reader minimal fixture integration', () => {
     );
   });
 
-  it('rejects current edge reads from empty edge collections', async () => {
+  it('rejects current edge iterator accessor reads from empty edge collections', async () => {
     const edges = await EdgesCollection.make(
       graphInfo,
       'person',
@@ -479,8 +479,8 @@ describe('Graph reader minimal fixture integration', () => {
     );
 
     const iterator = await edges.getIterator();
-    for await (const edge of iterator) {
-      await expect(edge.property('missingProperty')).rejects.toThrow(
+    for await (const edgeIter of iterator) {
+      await expect(edgeIter.property('missingProperty')).rejects.toThrow(
         /Edge property missingProperty not found in edge info/,
       );
       break;

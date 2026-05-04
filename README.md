@@ -20,9 +20,9 @@ At this point, the library can:
   `VerticesCollection.size()`, `getIterator()`, `getEndIterator()`,
   `VertexIter.isEnd()`, `equals(...)`, `notEquals(...)`, `advance(...)`,
   `id()`, `property(...)`, `label()`, and `hasLabel(...)`
-- expose high-level edge access through `edge.source()`,
-  `edge.destination()`, `edge.property(...)`, `EdgesCollection.findSrc(...)`,
-  and `EdgesCollection.findDst(...)`
+- expose high-level edge access through the canonical `EdgeIter` current-edge
+  accessors `source()`, `destination()`, and `property(...)`, plus
+  `EdgesCollection.findSrc(...)` and `EdgesCollection.findDst(...)`
 - expose high-level edge collection and iterator helpers through
   `EdgesCollection.size()`, `getIterator()`, `getEndIterator()`,
   `EdgeIter.isEnd()`, `equals(...)`, `notEquals(...)`, and `advance()`
@@ -102,11 +102,11 @@ const edges = await EdgesCollection.make(
 console.log(edges.size());
 
 const edgeIterator = await edges.getIterator();
-for await (const edge of edgeIterator) {
+for await (const edgeIter of edgeIterator) {
   console.log(
-    await edge.source(),
-    await edge.destination(),
-    await edge.property('creationDate'),
+    await edgeIter.source(),
+    await edgeIter.destination(),
+    await edgeIter.property('creationDate'),
   );
   break;
 }
@@ -160,9 +160,9 @@ constraints are:
   readers. Vertex collection filtering is available through
   `VerticesCollection.verticesWithLabel(...)`,
   `verticesWithMultipleLabels(...)`, and `verticesWithProperty(...)`.
-- High-level edge access is available through `edge.source()`,
-  `edge.destination()`, `edge.property(...)`, `EdgesCollection.findSrc(...)`,
-  and `EdgesCollection.findDst(...)`.
+- High-level edge access is available through `EdgeIter.source()`,
+  `EdgeIter.destination()`, `EdgeIter.property(...)`,
+  `EdgesCollection.findSrc(...)`, and `EdgesCollection.findDst(...)`.
 - High-level edge iterators support C++-style begin/end usage through
   `getIterator()`, `getEndIterator()`, `isEnd()`, `equals(...)`,
   `notEquals(...)`, and `advance()`. Reading `source()`, `destination()`, or
