@@ -9,7 +9,12 @@ import {
   getVertexChunkNumFromVertex,
   getVertexNumFromVertex,
 } from './reader-util.js';
-import { AdjListType, adjListTypeToString, DataType } from './types.js';
+import {
+  AdjListType,
+  adjListTypeToString,
+  DataType,
+  FileType,
+} from './types.js';
 
 function propertyGroupToSchema(propertyGroup, containIndexColumn = false) {
   const fields = [];
@@ -245,7 +250,7 @@ class VertexPropertyArrowChunkReader {
       const chunkTable = await readTableWithColumns(
         this.fs,
         path,
-        'parquet',
+        FileType.PARQUET,
         readColumns,
       );
       this.chunkTable = this.finalizeChunkTable(chunkTable, {

@@ -1,22 +1,38 @@
-import { describe, expect, it } from 'vitest';
-import { fileSystemFromUriOrPath } from '../src/index.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fileSystemFromUriOrPath } from '../src/core/filesystem.js';
+import { FileType } from '../src/core/types.js';
 
-describe('fileSystemFromUriOrPath', () => {
-  it('accepts absolute local paths', () => {
-    const [, outPath] = fileSystemFromUriOrPath('/tmp/graphar/');
-
-    expect(outPath).toBe('/tmp/graphar/');
+describe('filesystem readFileAsTable', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn());
   });
 
-  it('accepts file URIs and normalizes them to local paths', () => {
-    const [, outPath] = fileSystemFromUriOrPath('file:///tmp/graphar/data');
-
-    expect(outPath).toBe('/tmp/graphar/data');
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
-  it('rejects relative local paths', () => {
-    expect(() => fileSystemFromUriOrPath('./graphar')).toThrow(
-      /relative local path/,
-    );
-  });
+  it.each([
+    [FileType.CSV, 'csv'],
+    [FileType.ORC, 'orc'],
+    [FileType.JSON, 'json'],
+  ])(
+    'rejects unsupported %s payloads on the HTTP reader path before fetch',
+    async (fileType, fileTypeName) => {
+      const [fs] = fileSystemFromUriOrPath('http://example.test/graphs/');
+
+      await expect(
+        fs.readFileAsTable(
+          'http://example.test/graphs/chunk0',
+          fileType,
+          ['id'],
+        ),
+      ).rejects.toThrow(
+        new RegExp(
+          `Unsupported payload file type for readFileAsTable: ${fileTypeName}`,
+        ),
+      );
+
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
 });

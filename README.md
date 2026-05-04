@@ -149,8 +149,9 @@ constraints are:
   absolute local path or `file://...`. A graph YAML with `prefix: ./` may work
   over HTTP but is expected to fail on the local reader path, matching the
   current upstream C++ behavior.
-- Payload reading is Parquet-only. Metadata may mention other file types, but
-  the reader path currently always uses `parquet-wasm`.
+- Payload reading is Parquet-only. The reader path now checks `file_type`
+  explicitly and rejects `csv` / `orc` / `json` payloads with an unsupported
+  error instead of silently treating them as Parquet.
 - The reader path is browser-oriented and depends on `parquet-wasm`; Node-based
   checks need explicit WASM initialization.
 - High-level vertex access is available through `vertex.id()`,

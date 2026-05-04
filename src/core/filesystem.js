@@ -1,6 +1,24 @@
 import * as arrow from 'apache-arrow';
 import initWasm, { readParquet } from 'parquet-wasm/esm';
 import { HttpClient } from './http-client.js';
+import { FileType, fileTypeToString } from './types.js';
+
+function formatFileTypeForError(fileType) {
+  try {
+    return fileTypeToString(fileType);
+  } catch {
+    return String(fileType);
+  }
+}
+
+function assertReadablePayloadFileType(fileType, path) {
+  if (fileType !== FileType.PARQUET) {
+    const fileTypeName = formatFileTypeForError(fileType);
+    throw new Error(
+      `Unsupported payload file type for readFileAsTable: ${fileTypeName} (${path}). Only parquet is currently supported.`,
+    );
+  }
+}
 
 class HttpFileSystem {
   constructor(client) {
@@ -23,13 +41,13 @@ class HttpFileSystem {
     return view.getBigUint64(0, true);
   }
 
-  async readFileAsTable(path, _fileType, columns) {
+  async readFileAsTable(path, fileType, columns) {
+    assertReadablePayloadFileType(fileType, path);
     const response = await this.client.get(path);
     const dataUint8Array = new Uint8Array(await response.arrayBuffer());
     const options = {
       columns,
     };
-    // TODO: branch fileType
     const arrowWasmTable = readParquet(dataUint8Array, options);
     const arrowTable = arrow.tableFromIPC(arrowWasmTable.intoIPCStream());
 
@@ -65,12 +83,12 @@ class LocalFileSystem {
     return view.getBigUint64(0, true);
   }
 
-  async readFileAsTable(path, _fileType, columns) {
+  async readFileAsTable(path, fileType, columns) {
+    assertReadablePayloadFileType(fileType, path);
     const dataUint8Array = new Uint8Array(await readLocalFile(path));
     const options = {
       columns,
     };
-    // TODO: branch fileType
     const arrowWasmTable = readParquet(dataUint8Array, options);
     const arrowTable = arrow.tableFromIPC(arrowWasmTable.intoIPCStream());
 
