@@ -16,11 +16,20 @@ At this point, the library can:
 - read edge topology chunks
 - expose high-level vertex access through `vertex.id()`, `vertex.property(...)`,
   `vertex.label()`, `vertex.hasLabel(...)`, and `VerticesCollection.find(...)`
+- expose high-level vertex collection and iterator helpers through
+  `VerticesCollection.size()`, `getIterator()`, `getEndIterator()`,
+  `VertexIter.isEnd()`, `equals(...)`, `notEquals(...)`, `advance(...)`,
+  `id()`, `property(...)`, `label()`, and `hasLabel(...)`
 - expose high-level edge access through `edge.source()`,
   `edge.destination()`, `edge.property(...)`, `EdgesCollection.findSrc(...)`,
   and `EdgesCollection.findDst(...)`
+- expose high-level edge collection and iterator helpers through
+  `EdgesCollection.size()`, `getIterator()`, `getEndIterator()`,
+  `EdgeIter.isEnd()`, `equals(...)`, `notEquals(...)`, and `advance()`
 - support partial edge collections through
   `EdgesCollection.make(..., vertexChunkBegin, vertexChunkEnd)`
+- validate high-level vertex and edge collection bounds, including vertex
+  lookup ids, edge collection vertex chunk ranges, and edge search vertex ids
 - apply projection/filter on property chunk readers
 - iterate edges for the four GraphAr adjacency list layouts:
   `ordered_by_source`, `ordered_by_dest`, `unordered_by_source`, and
@@ -57,6 +66,8 @@ const graphInfo = await GraphInfo.load({
 });
 
 const vertices = await VerticesCollection.make(graphInfo, 'person');
+console.log(vertices.size());
+
 const vertexIterator = await vertices.getIterator();
 for (const vertex of vertexIterator) {
   console.log(
@@ -66,6 +77,13 @@ for (const vertex of vertexIterator) {
   );
   break;
 }
+
+const vertexBegin = await vertices.getIterator();
+console.log(
+  vertexBegin.id(),
+  await vertexBegin.property('firstName'),
+);
+vertexBegin.advance();
 
 const vertex = await vertices.find(3n);
 console.log(
@@ -81,6 +99,7 @@ const edges = await EdgesCollection.make(
   'person',
   AdjListType.ORDERED_BY_SOURCE,
 );
+console.log(edges.size());
 
 const edgeIterator = await edges.getIterator();
 for await (const edge of edgeIterator) {
@@ -130,6 +149,13 @@ constraints are:
 - High-level vertex access is available through `vertex.id()`,
   `vertex.property(...)`, `vertex.label()`, `vertex.hasLabel(...)`, and
   `VerticesCollection.find(...)`.
+- High-level vertex iterators support C++-style begin/end usage through
+  `getIterator()`, `getEndIterator()`, `isEnd()`, `equals(...)`,
+  `notEquals(...)`, and `advance(...)`. They also expose current vertex access
+  through `id()`, `property(...)`, `label()`, and `hasLabel(...)`.
+- `VerticesCollection.size()` returns a `BigInt`. Filtered vertex collections
+  report the filtered size, while `VerticesCollection.find(...)` continues to
+  use internal vertex ids and rejects ids outside `[0, vertexNum)`.
 - Property projection/filter is implemented on vertex and edge property chunk
   readers. Vertex collection filtering is available through
   `VerticesCollection.verticesWithLabel(...)`,
@@ -137,9 +163,18 @@ constraints are:
 - High-level edge access is available through `edge.source()`,
   `edge.destination()`, `edge.property(...)`, `EdgesCollection.findSrc(...)`,
   and `EdgesCollection.findDst(...)`.
+- High-level edge iterators support C++-style begin/end usage through
+  `getIterator()`, `getEndIterator()`, `isEnd()`, `equals(...)`,
+  `notEquals(...)`, and `advance()`. Reading `source()`, `destination()`, or
+  `property(...)` from an end iterator is rejected with a high-level error.
+- `EdgesCollection.size()` returns a `BigInt`. `findSrc(...)` and
+  `findDst(...)` return the end iterator when the requested source or
+  destination id is outside the corresponding vertex id range.
 - Partial edge collections are available through
   `EdgesCollection.make(..., vertexChunkBegin, vertexChunkEnd)`, where the
-  chunk range is half-open and searches stay inside that range.
+  chunk range is half-open and searches stay inside that range. Invalid ranges
+  are rejected; empty ranges such as `[1n, 1n)` are allowed and produce empty
+  collections.
 - Edge-iterator traversal helpers such as `firstSrc(...)`, `firstDst(...)`,
   `nextSrc(...)`, and `nextDst(...)` exist to support the collection search
   APIs, but they should still be treated as low-level, not-yet-stable helpers.
