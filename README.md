@@ -11,6 +11,9 @@ while keeping the implementation close to the upstream C++ behavior.
 At this point, the library can:
 
 - load GraphAr graph, vertex, and edge metadata from YAML files
+- validate GraphAr metadata for `file_type` and GraphInfo structural
+  constraints during load, following the current upstream C++ rules where this
+  port already implements them
 - read vertex property chunks
 - read vertex label chunks
 - read edge topology chunks
@@ -149,6 +152,10 @@ constraints are:
   absolute local path or `file://...`. A graph YAML with `prefix: ./` may work
   over HTTP but is expected to fail on the local reader path, matching the
   current upstream C++ behavior.
+- GraphInfo metadata validation currently rejects unsupported storage
+  `file_type` values in `property_groups` and `adj_lists`, plus the current
+  C++-mirrored CSV restrictions such as list payload types and non-single
+  cardinality in CSV property groups.
 - Payload reading is Parquet-only. The reader path now checks `file_type`
   explicitly and rejects `csv` / `orc` / `json` payloads with an unsupported
   error instead of silently treating them as Parquet.
