@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import {
   AdjListType,
   EdgesCollection,
@@ -25,26 +25,15 @@ const wasmPath = path.join(
   'parquet_wasm_bg.wasm',
 );
 
-function stubFixtureFetch(rootDir, baseUrl) {
-  vi.stubGlobal('fetch', async (input) => {
-    const url = new URL(input instanceof Request ? input.url : input);
-    if (url.origin !== new URL(baseUrl).origin) {
-      return new Response('Not found', { status: 404 });
-    }
-    try {
-      const requestedPath = decodeURIComponent(url.pathname.slice(1));
-      const filePath = path.resolve(rootDir, requestedPath);
-      if (
-        !filePath.startsWith(`${rootDir}${path.sep}`) &&
-        filePath !== rootDir
-      ) {
-        return new Response('Forbidden', { status: 403 });
-      }
-      const data = await readFile(filePath);
-      return new Response(data, { status: 200 });
-    } catch {
-      return new Response('Not found', { status: 404 });
-    }
+function toPosixDirectoryPath(inputPath) {
+  return `${inputPath.split(path.sep).join('/')}/`;
+}
+
+async function loadLocalFixtureGraphInfo() {
+  const input = await readFile(path.join(fixtureDir, 'ldbc_sample.graph.yml'), 'utf8');
+  return await GraphInfo.load({
+    input: input.replace('prefix: ./', `prefix: ${toPosixDirectoryPath(fixtureDir)}`),
+    relativeLocation: toPosixDirectoryPath(fixtureDir),
   });
 }
 
@@ -71,24 +60,16 @@ async function collectEdgesWithProperties(collection) {
 }
 
 describe('Graph reader minimal fixture integration', () => {
-  const fixtureBaseUrl = 'http://fixture.test/';
   let graphInfo;
 
   beforeAll(async () => {
     await initWasm({ module_or_path: await readFile(wasmPath) });
-    stubFixtureFetch(fixtureDir, fixtureBaseUrl);
-    graphInfo = await GraphInfo.load({
-      path: `${fixtureBaseUrl}ldbc_sample.graph.yml`,
-    });
-  });
-
-  afterAll(async () => {
-    vi.unstubAllGlobals();
+    graphInfo = await loadLocalFixtureGraphInfo();
   });
 
   it('loads graph, vertex, and edge metadata from the fixture', () => {
     expect(graphInfo.graphName).toBe('ldbc_sample');
-    expect(graphInfo.prefix).toBe(fixtureBaseUrl);
+    expect(graphInfo.prefix).toBe(toPosixDirectoryPath(fixtureDir));
     expect(graphInfo.vertexInfos).toHaveLength(1);
     expect(graphInfo.edgeInfos).toHaveLength(1);
 

@@ -139,9 +139,16 @@ For a runnable example, see [demo/main.js](./demo/main.js).
 The implementation is not ready for npm publish yet. The main current
 constraints are:
 
-- Graph info and payload files must be read through `http://` or `https://`.
-  Local filesystem paths and absolute paths such as `/tmp/graph/...` are not
-  supported by the current `FileSystem` implementation.
+- In browsers, graph info and payload files must be read through `http://` or
+  `https://`.
+- In Node.js, graph info and payload files may also be read from `file://...`
+  URIs and absolute local filesystem paths such as `/tmp/graph/...`.
+- Relative local filesystem paths such as `./graph/...` are not supported.
+  This matches the current C++ `FileSystemFromUriOrPath` constraint.
+- For local loading, graph-level metadata prefixes must also resolve to an
+  absolute local path or `file://...`. A graph YAML with `prefix: ./` may work
+  over HTTP but is expected to fail on the local reader path, matching the
+  current upstream C++ behavior.
 - Payload reading is Parquet-only. Metadata may mention other file types, but
   the reader path currently always uses `parquet-wasm`.
 - The reader path is browser-oriented and depends on `parquet-wasm`; Node-based

@@ -165,4 +165,5 @@ describe('GraphInfo', () => {
       'http://example.test/graphs/person_knows_person.edge.yml',
     );
   });
+
 });
