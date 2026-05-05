@@ -65,7 +65,7 @@ following public API surface.
   `VerticesCollection.getEndIterator()`
 - high-level vertex iterator surface:
   `VertexIter.isEnd()`, `equals(...)`, `notEquals(...)`, `advance(...)`,
-  `id()`, `property(...)`, `label()`, and `hasLabel(...)`
+  `id()`, `property(...)`, `isValid(...)`, `label()`, and `hasLabel(...)`
 - high-level edge reader surface:
   `EdgesCollection.make(...)`,
   `EdgesCollection.size()`,
@@ -74,15 +74,14 @@ following public API surface.
   `EdgesCollection.findSrc(...)`, and `EdgesCollection.findDst(...)`
 - high-level edge iterator surface:
   `EdgeIter.isEnd()`, `equals(...)`, `notEquals(...)`, `advance()`,
-  `source()`, `destination()`, and `property(...)`
+  `source()`, `destination()`, `property(...)`, and `isValid(...)`
 - property-expression helpers used by
   `VerticesCollection.verticesWithProperty(...)`:
   `_Property`, `_Literal`, `_Equal`, `_NotEqual`, `_GreaterThan`,
   `_GreaterEqual`, `_LessThan`, `_LessEqual`, `_And`, `_Or`, and `_Not`
 
-The `Vertex::IsValid` / `Edge::IsValid` parity APIs from the upstream C++
-high-level reader are planned for this reader milestone, but are not yet
-implemented in this JS port.
+For upstream `Vertex::IsValid` / `Edge::IsValid` parity, this JS port exposes
+`vertex.isValid(...)`, `VertexIter.isValid(...)`, and `EdgeIter.isValid(...)`.
 
 ## Experimental And Internal
 
@@ -228,12 +227,13 @@ constraints are:
   to pass supported graph info paths into higher-level APIs such as
   `GraphInfo.load(...)`.
 - High-level vertex access is available through `vertex.id()`,
-  `vertex.property(...)`, `vertex.label()`, `vertex.hasLabel(...)`, and
-  `VerticesCollection.find(...)`.
+  `vertex.property(...)`, `vertex.isValid(...)`, `vertex.label()`,
+  `vertex.hasLabel(...)`, and `VerticesCollection.find(...)`.
 - High-level vertex iterators support C++-style begin/end usage through
   `getIterator()`, `getEndIterator()`, `isEnd()`, `equals(...)`,
   `notEquals(...)`, and `advance(...)`. They also expose current vertex access
-  through `id()`, `property(...)`, `label()`, and `hasLabel(...)`.
+  through `id()`, `property(...)`, `isValid(...)`, `label()`, and
+  `hasLabel(...)`.
 - `VerticesCollection.size()` returns a `BigInt`. Filtered vertex collections
   report the filtered size, while `VerticesCollection.find(...)` continues to
   use internal vertex ids and rejects ids outside `[0, vertexNum)`.
@@ -274,7 +274,7 @@ constraints are:
   separate public JS API matching the C++ low-level reader `Filter(...)`
   methods directly.
 - High-level edge access is available through `EdgeIter.source()`,
-  `EdgeIter.destination()`, `EdgeIter.property(...)`,
+  `EdgeIter.destination()`, `EdgeIter.property(...)`, `EdgeIter.isValid(...)`,
   `EdgesCollection.findSrc(...)`, and `EdgesCollection.findDst(...)`.
 - High-level edge iterators support C++-style begin/end usage through
   `getIterator()`, `getEndIterator()`, `isEnd()`, `equals(...)`,

@@ -67,6 +67,25 @@ class Vertex {
     throw new Error(`Vertex property ${property} not found in vertex info.`);
   }
 
+  async isValid(property) {
+    for (const reader of this.readers) {
+      reader.seek(this.curOffset);
+      const chunkTable = await reader.getChunk();
+      const arrowArray = chunkTable.batches[0]?.getChild(property);
+      if (!arrowArray) {
+        continue;
+      }
+      const propertyDefinition = reader.propertyGroup.properties.find(
+        (candidate) => candidate.name === property,
+      );
+      if (propertyDefinition?.cardinality !== 'single') {
+        return true;
+      }
+      return arrowArray.get(0) !== null;
+    }
+    throw new Error(`Vertex property ${property} not found in vertex info.`);
+  }
+
   async hasLabel(label) {
     if (!this.labelReader) {
       throw new Error(`Vertex label ${label} not found in vertex info.`);
@@ -146,6 +165,11 @@ class VertexIter {
   async property(property) {
     this.vertex.curOffset = this.currentVertexOffset();
     return await this.vertex.property(property);
+  }
+
+  async isValid(property) {
+    this.vertex.curOffset = this.currentVertexOffset();
+    return await this.vertex.isValid(property);
   }
 
   async hasLabel(label) {
@@ -670,6 +694,26 @@ class EdgeIter {
     }
     if (arrowArray) {
       return arrowArray.get(0);
+    }
+    throw new Error(`Edge property ${property} not found in edge info.`);
+  }
+
+  async isValid(property) {
+    this.ensureNotEnd();
+    for (const reader of this.propertyReaders) {
+      await reader.seek(this.curOffset);
+      const chunkTable = await reader.getChunk();
+      const arrowArray = chunkTable?.batches[0]?.getChild(property) ?? null;
+      if (!arrowArray) {
+        continue;
+      }
+      const propertyDefinition = reader.propertyGroup.properties.find(
+        (candidate) => candidate.name === property,
+      );
+      if (propertyDefinition?.cardinality !== 'single') {
+        return true;
+      }
+      return arrowArray.get(0) !== null;
     }
     throw new Error(`Edge property ${property} not found in edge info.`);
   }
