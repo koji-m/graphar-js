@@ -45,6 +45,65 @@ The current integration fixture lives under
 [`test/fixtures/graphar-minimal`](./test/fixtures/graphar-minimal). It is a
 small Parquet-backed GraphAr graph used by tests and by the current demo.
 
+## Reader v0 Public Surface
+
+The current plan for the first npm milestone is a reader-only package with the
+following public API surface.
+
+- runtime initialization: `initWasm(...)`
+- metadata loading and inspection: `GraphInfo`, `VertexInfo`, `EdgeInfo`,
+  `PropertyGroup`, `AdjacentList`
+- graph metadata enums: `AdjListType`, `FileType`
+- high-level vertex reader surface:
+  `VerticesCollection.make(...)`,
+  `VerticesCollection.verticesWithLabel(...)`,
+  `VerticesCollection.verticesWithMultipleLabels(...)`,
+  `VerticesCollection.verticesWithProperty(...)`,
+  `VerticesCollection.size()`,
+  `VerticesCollection.find(...)`,
+  `VerticesCollection.getIterator()`, and
+  `VerticesCollection.getEndIterator()`
+- high-level vertex iterator surface:
+  `VertexIter.isEnd()`, `equals(...)`, `notEquals(...)`, `advance(...)`,
+  `id()`, `property(...)`, `label()`, and `hasLabel(...)`
+- high-level edge reader surface:
+  `EdgesCollection.make(...)`,
+  `EdgesCollection.size()`,
+  `EdgesCollection.getIterator()`,
+  `EdgesCollection.getEndIterator()`,
+  `EdgesCollection.findSrc(...)`, and `EdgesCollection.findDst(...)`
+- high-level edge iterator surface:
+  `EdgeIter.isEnd()`, `equals(...)`, `notEquals(...)`, `advance()`,
+  `source()`, `destination()`, and `property(...)`
+- property-expression helpers used by
+  `VerticesCollection.verticesWithProperty(...)`:
+  `_Property`, `_Literal`, `_Equal`, `_NotEqual`, `_GreaterThan`,
+  `_GreaterEqual`, `_LessThan`, `_LessEqual`, `_And`, `_Or`, and `_Not`
+
+The `Vertex::IsValid` / `Edge::IsValid` parity APIs from the upstream C++
+high-level reader are planned for this reader milestone, but are not yet
+implemented in this JS port.
+
+## Experimental And Internal
+
+The following APIs exist today but are not part of the intended reader v0
+stable package contract.
+
+- edge-iterator traversal helpers `firstSrc(...)`, `firstDst(...)`,
+  `nextSrc(...)`, and `nextDst(...)` are currently exposed on `EdgeIter`
+  instances to support collection search behavior, but should be treated as
+  unstable helper APIs
+- compatibility support for the older plain-object filter shape in
+  `VerticesCollection.verticesWithProperty(...)` remains available during the
+  port, but the intended stable filtering surface is the C++-mirrored
+  expression-helper API
+- low-level chunk readers, reader utilities, filesystem helpers, HTTP helpers,
+  and general utility modules under `src/core/` are internal implementation
+  details rather than package-root public APIs
+- in particular, `fileSystemFromUriOrPath(...)` is an internal filesystem
+  helper that mirrors the role of the upstream C++ utility, but is not part of
+  the intended JS reader public API
+
 ## Current Example
 
 The current browser demo reads a GraphAr graph info file over HTTP, then:
@@ -164,6 +223,10 @@ constraints are:
   error instead of silently treating them as Parquet.
 - The reader path is browser-oriented and depends on `parquet-wasm`; Node-based
   checks need explicit WASM initialization.
+- The intended package-root filesystem surface is `initWasm(...)` only.
+  Filesystem resolution remains an internal reader detail; callers are expected
+  to pass supported graph info paths into higher-level APIs such as
+  `GraphInfo.load(...)`.
 - High-level vertex access is available through `vertex.id()`,
   `vertex.property(...)`, `vertex.label()`, `vertex.hasLabel(...)`, and
   `VerticesCollection.find(...)`.
@@ -228,6 +291,9 @@ constraints are:
 - Edge-iterator traversal helpers such as `firstSrc(...)`, `firstDst(...)`,
   `nextSrc(...)`, and `nextDst(...)` exist to support the collection search
   APIs, but they should still be treated as low-level, not-yet-stable helpers.
+- `fileSystemFromUriOrPath(...)` is no longer considered part of the intended
+  package-root public API even though the implementation continues to use it
+  internally.
 - Row filters are evaluated in JavaScript after Parquet decode because the
   current `parquet-wasm` path does not expose the C++ reader's filter pushdown
   API.

@@ -1,4 +1,4 @@
-export { fileSystemFromUriOrPath, initWasm } from './core/filesystem.js';
+export { initWasm } from './core/filesystem.js';
 export {
   _And,
   _Equal,
