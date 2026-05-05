@@ -178,9 +178,38 @@ constraints are:
   readers. Vertex collection filtering is available through
   `VerticesCollection.verticesWithLabel(...)`,
   `verticesWithMultipleLabels(...)`, and `verticesWithProperty(...)`.
-- `VerticesCollection.verticesWithProperty(...)` accepts the new C++-style
+- The current filtering surface is intended to mirror the upstream C++
+  high-level reader APIs as follows:
+  `VerticesCollection::verticesWithLabel(...)` ->
+  `VerticesCollection.verticesWithLabel(...)`
+  `VerticesCollection::verticesWithMultipleLabels(...)` ->
+  `VerticesCollection.verticesWithMultipleLabels(...)`
+  `VerticesCollection::verticesWithProperty(...)` ->
+  `VerticesCollection.verticesWithProperty(...)`
+- The current property-expression helper surface also mirrors the upstream C++
+  helper names:
+  `graphar::_Property(...)` -> `_Property(...)`
+  `graphar::_Literal(...)` -> `_Literal(...)`
+  `graphar::_Equal(...)` -> `_Equal(...)`
+  `graphar::_NotEqual(...)` -> `_NotEqual(...)`
+  `graphar::_GreaterThan(...)` -> `_GreaterThan(...)`
+  `graphar::_GreaterEqual(...)` -> `_GreaterEqual(...)`
+  `graphar::_LessThan(...)` -> `_LessThan(...)`
+  `graphar::_LessEqual(...)` -> `_LessEqual(...)`
+  `graphar::_And(...)` -> `_And(...)`
+  `graphar::_Or(...)` -> `_Or(...)`
+  `graphar::_Not(...)` -> `_Not(...)`
+- `VerticesCollection.verticesWithProperty(...)` accepts those C++-style
   expression helper trees and still accepts the older plain-object filter form
   for compatibility during the port.
+- The JS expression helpers intentionally use plain-object expression trees
+  instead of porting the C++ `Expression` class hierarchy 1:1. This is a
+  deliberate JS-specific adaptation at the representation layer; the goal is
+  to keep the public filtering semantics aligned with the upstream C++ reader.
+- Current filtering coverage is vertex-focused. The helper expressions are used
+  by `VerticesCollection.verticesWithProperty(...)`; there is not yet a
+  separate public JS API matching the C++ low-level reader `Filter(...)`
+  methods directly.
 - High-level edge access is available through `EdgeIter.source()`,
   `EdgeIter.destination()`, `EdgeIter.property(...)`,
   `EdgesCollection.findSrc(...)`, and `EdgesCollection.findDst(...)`.
