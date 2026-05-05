@@ -6,6 +6,9 @@ import {
   _And,
   _Equal,
   _Literal,
+  _Not,
+  _NotEqual,
+  _Or,
   _Property,
   GraphInfo,
   initWasm,
@@ -96,6 +99,40 @@ describe('Graph reader vertex fixture integration', () => {
     expect(vertices.size()).toBe(5n);
     expect(activeVertices.size()).toBe(3n);
     expect(contractorVertices.size()).toBe(1n);
+  });
+
+  it('matches the C++ filtering example for label filtering on graph and filtered collections', async () => {
+    const companyLikeVertices = await VerticesCollection.verticesWithLabel(
+      'contractor',
+      graphInfo,
+      'person',
+    );
+    const filteredAgain = await VerticesCollection.verticesWithLabel(
+      'active',
+      companyLikeVertices,
+    );
+    const sameViaMultiLabel =
+      await VerticesCollection.verticesWithMultipleLabels(
+        ['contractor', 'active'],
+        graphInfo,
+        'person',
+      );
+
+    const twiceFilteredIds = [];
+    const multiLabelIds = [];
+
+    for (const vertex of await filteredAgain.getIterator()) {
+      twiceFilteredIds.push(vertex.id());
+    }
+    for (const vertex of await sameViaMultiLabel.getIterator()) {
+      multiLabelIds.push(vertex.id());
+    }
+
+    expect(companyLikeVertices.size()).toBe(2n);
+    expect(filteredAgain.size()).toBe(1n);
+    expect(sameViaMultiLabel.size()).toBe(1n);
+    expect(twiceFilteredIds).toEqual([3n]);
+    expect(multiLabelIds).toEqual([3n]);
   });
 
   it('reports vertex iterator end positions', async () => {
@@ -260,6 +297,132 @@ describe('Graph reader vertex fixture integration', () => {
 
     expect(exactIds).toEqual([3n]);
     expect(compoundIds).toEqual([0n]);
+  });
+
+  it('matches the C++ filtering example for property filtering on graph and filtered collections', async () => {
+    const propertyFiltered = await VerticesCollection.verticesWithProperty(
+      'firstName',
+      _Equal(_Property('firstName'), _Literal('Dan')),
+      graphInfo,
+      'person',
+    );
+    const filteredBase =
+      await VerticesCollection.verticesWithMultipleLabels(
+        ['active', 'contractor'],
+        graphInfo,
+        'person',
+      );
+    const propertyFilteredFromSubset =
+      await VerticesCollection.verticesWithProperty(
+        'firstName',
+        _Equal(_Property('firstName'), _Literal('Dan')),
+        filteredBase,
+      );
+
+    const graphLevelIds = [];
+    const subsetIds = [];
+
+    for (const vertex of await propertyFiltered.getIterator()) {
+      graphLevelIds.push(vertex.id());
+    }
+    for (const vertex of await propertyFilteredFromSubset.getIterator()) {
+      subsetIds.push(vertex.id());
+    }
+
+    expect(propertyFiltered.size()).toBe(1n);
+    expect(propertyFilteredFromSubset.size()).toBe(1n);
+    expect(graphLevelIds).toEqual([3n]);
+    expect(subsetIds).toEqual([3n]);
+  });
+
+  it('supports nested not/or property expressions on vertex collections', async () => {
+    const vertices = await VerticesCollection.make(graphInfo, 'person');
+    const filtered = await VerticesCollection.verticesWithProperty(
+      'firstName',
+      _Or(
+        _Equal(_Property('firstName'), _Literal('Ann')),
+        _Not(_Equal(_Property('id'), _Literal(100n))),
+      ),
+      vertices,
+    );
+
+    const ids = [];
+    for (const vertex of await filtered.getIterator()) {
+      ids.push(vertex.id());
+    }
+
+    expect(ids).toEqual([0n, 1n, 2n, 3n, 4n]);
+  });
+
+  it('supports not-equal expressions and multi-column property expressions', async () => {
+    const vertices = await VerticesCollection.make(graphInfo, 'person');
+    const notEqual = await VerticesCollection.verticesWithProperty(
+      'firstName',
+      _NotEqual(_Property('firstName'), _Literal('Eve')),
+      vertices,
+    );
+    const multiColumn = await VerticesCollection.verticesWithProperty(
+      'firstName',
+      _And(
+        _Equal(_Property('firstName'), _Literal('Bob')),
+        _Equal(_Property('id'), _Literal(101n)),
+      ),
+      vertices,
+    );
+
+    const notEqualIds = [];
+    const multiColumnIds = [];
+
+    for (const vertex of await notEqual.getIterator()) {
+      notEqualIds.push(vertex.id());
+    }
+    for (const vertex of await multiColumn.getIterator()) {
+      multiColumnIds.push(vertex.id());
+    }
+
+    expect(notEqualIds).toEqual([0n, 1n, 2n, 3n]);
+    expect(multiColumnIds).toEqual([1n]);
+  });
+
+  it('rejects unknown labels during label filtering', async () => {
+    const vertices = await VerticesCollection.make(graphInfo, 'person');
+
+    await expect(
+      VerticesCollection.verticesWithLabel('company', vertices),
+    ).rejects.toThrow(/Vertex label company not found in vertex info/);
+    await expect(
+      VerticesCollection.verticesWithMultipleLabels(
+        ['active', 'company'],
+        vertices,
+      ),
+    ).rejects.toThrow(/Vertex label company not found in vertex info/);
+  });
+
+  it('rejects unknown properties during property filtering', async () => {
+    const vertices = await VerticesCollection.make(graphInfo, 'person');
+
+    await expect(
+      VerticesCollection.verticesWithProperty(
+        'name',
+        _Equal(_Property('name'), _Literal('Ann')),
+        vertices,
+      ),
+    ).rejects.toThrow(/Vertex property name not found in vertex info/);
+  });
+
+  it('rejects property expressions that reference unknown columns', async () => {
+    const vertices = await VerticesCollection.make(graphInfo, 'person');
+
+    await expect(
+      VerticesCollection.verticesWithProperty(
+        'firstName',
+        _And(
+          _Equal(_Property('firstName'), _Literal('Ann')),
+          _Equal(_Property('name'), _Literal('Ann')),
+        ),
+        vertices,
+      ),
+    ).rejects.toThrow(/Vertex property name not found in vertex info/);
   });
 
   it('compares filtered vertex iterators by filtered offset', async () => {
