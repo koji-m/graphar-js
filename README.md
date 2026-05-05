@@ -34,6 +34,9 @@ At this point, the library can:
 - validate high-level vertex and edge collection bounds, including vertex
   lookup ids, edge collection vertex chunk ranges, and edge search vertex ids
 - apply projection/filter on property chunk readers
+- expose C++-style expression builders for property filtering through
+  `_Property`, `_Literal`, `_Equal`, `_NotEqual`, `_GreaterThan`,
+  `_GreaterEqual`, `_LessThan`, `_LessEqual`, `_And`, and `_Or`
 - iterate edges for the four GraphAr adjacency list layouts:
   `ordered_by_source`, `ordered_by_dest`, `unordered_by_source`, and
   `unordered_by_dest`
@@ -175,6 +178,9 @@ constraints are:
   readers. Vertex collection filtering is available through
   `VerticesCollection.verticesWithLabel(...)`,
   `verticesWithMultipleLabels(...)`, and `verticesWithProperty(...)`.
+- `VerticesCollection.verticesWithProperty(...)` accepts the new C++-style
+  expression helper trees and still accepts the older plain-object filter form
+  for compatibility during the port.
 - High-level edge access is available through `EdgeIter.source()`,
   `EdgeIter.destination()`, `EdgeIter.property(...)`,
   `EdgesCollection.findSrc(...)`, and `EdgesCollection.findDst(...)`.

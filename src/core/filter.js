@@ -4,9 +4,46 @@ function unique(items) {
   return [...new Set(items)];
 }
 
+function isStructuredExpression(filter) {
+  return (
+    filter != null &&
+    typeof filter === 'object' &&
+    typeof filter.type === 'string'
+  );
+}
+
+function getStructuredExpressionColumns(filter) {
+  switch (filter.type) {
+    case 'property':
+      return [filter.name];
+    case 'literal':
+      return [];
+    case 'not':
+      return getFilterColumns(filter.expr);
+    case 'and':
+    case 'or':
+    case 'eq':
+    case 'ne':
+    case 'gt':
+    case 'gte':
+    case 'lt':
+    case 'lte':
+      return unique([
+        ...getFilterColumns(filter.lhs),
+        ...getFilterColumns(filter.rhs),
+      ]);
+    default:
+      throw new Error(`Unsupported expression type: ${filter.type}`);
+  }
+}
+
 function getFilterColumns(filter) {
   if (filter == null) {
     return [];
+  }
+
+  if (isStructuredExpression(filter)) {
+    return getStructuredExpressionColumns(filter);
   }
 
   switch (filter.op) {
@@ -28,9 +65,66 @@ function getFilterColumns(filter) {
   }
 }
 
+function evaluateStructuredExpression(filter, row) {
+  switch (filter.type) {
+    case 'property':
+      return row[filter.name];
+    case 'literal':
+      return filter.value;
+    case 'not':
+      return !evaluateStructuredExpression(filter.expr, row);
+    case 'and':
+      return (
+        evaluateStructuredExpression(filter.lhs, row) &&
+        evaluateStructuredExpression(filter.rhs, row)
+      );
+    case 'or':
+      return (
+        evaluateStructuredExpression(filter.lhs, row) ||
+        evaluateStructuredExpression(filter.rhs, row)
+      );
+    case 'eq':
+      return (
+        evaluateStructuredExpression(filter.lhs, row) ===
+        evaluateStructuredExpression(filter.rhs, row)
+      );
+    case 'ne':
+      return (
+        evaluateStructuredExpression(filter.lhs, row) !==
+        evaluateStructuredExpression(filter.rhs, row)
+      );
+    case 'gt':
+      return (
+        evaluateStructuredExpression(filter.lhs, row) >
+        evaluateStructuredExpression(filter.rhs, row)
+      );
+    case 'gte':
+      return (
+        evaluateStructuredExpression(filter.lhs, row) >=
+        evaluateStructuredExpression(filter.rhs, row)
+      );
+    case 'lt':
+      return (
+        evaluateStructuredExpression(filter.lhs, row) <
+        evaluateStructuredExpression(filter.rhs, row)
+      );
+    case 'lte':
+      return (
+        evaluateStructuredExpression(filter.lhs, row) <=
+        evaluateStructuredExpression(filter.rhs, row)
+      );
+    default:
+      throw new Error(`Unsupported expression type: ${filter.type}`);
+  }
+}
+
 function evaluateFilterExpression(filter, row) {
   if (filter == null) {
     return true;
+  }
+
+  if (isStructuredExpression(filter)) {
+    return Boolean(evaluateStructuredExpression(filter, row));
   }
 
   switch (filter.op) {

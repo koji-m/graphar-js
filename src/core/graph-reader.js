@@ -4,7 +4,7 @@ import {
   AdjListPropertyArrowChunkReader,
   VertexPropertyArrowChunkReader,
 } from './chunk-reader.js';
-import { evaluateFilterExpression } from './filter.js';
+import { evaluateFilterExpression, getFilterColumns } from './filter.js';
 import { fileSystemFromUriOrPath } from './filesystem.js';
 import {
   getVertexChunkNumFromEdge,
@@ -278,15 +278,27 @@ class VerticesCollection {
       throw new Error(`Vertex property ${propertyName} not found in vertex info.`);
     }
 
+    const referencedProperties = [
+      propertyName,
+      ...getFilterColumns(filter).filter((column) => column !== propertyName),
+    ];
+    for (const column of referencedProperties) {
+      const columnExists = vertices.vertexInfo.propertyGroups.some((group) =>
+        group.properties.some((property) => property.name === column),
+      );
+      if (!columnExists) {
+        throw new Error(`Vertex property ${column} not found in vertex info.`);
+      }
+    }
+
     const iterator = await vertices.getIterator();
     const filteredIds = [];
     for (const vertex of iterator) {
-      const propertyValue = await vertex.property(propertyName);
-      if (
-        evaluateFilterExpression(filter, {
-          [propertyName]: propertyValue,
-        })
-      ) {
+      const row = {};
+      for (const column of referencedProperties) {
+        row[column] = await vertex.property(column);
+      }
+      if (evaluateFilterExpression(filter, row)) {
         filteredIds.push(vertex.curOffset);
       }
     }

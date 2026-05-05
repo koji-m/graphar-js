@@ -2,7 +2,15 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { GraphInfo, initWasm, VerticesCollection } from '../src/index.js';
+import {
+  _And,
+  _Equal,
+  _Literal,
+  _Property,
+  GraphInfo,
+  initWasm,
+  VerticesCollection,
+} from '../src/index.js';
 
 const fixtureDir = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -219,6 +227,39 @@ describe('Graph reader vertex fixture integration', () => {
 
     expect(activeIds).toEqual([0n, 1n, 3n]);
     expect(activeBegin.isEnd()).toBe(true);
+  });
+
+  it('filters vertices with C++-style property expressions', async () => {
+    const vertices = await VerticesCollection.make(graphInfo, 'person');
+
+    const exactMatch = await VerticesCollection.verticesWithProperty(
+      'firstName',
+      _Equal(_Property('firstName'), _Literal('Dan')),
+      vertices,
+    );
+    const compoundMatch = await VerticesCollection.verticesWithProperty(
+      'firstName',
+      _And(
+        _Equal(_Property('firstName'), _Literal('Ann')),
+        _Equal(_Property('id'), _Literal(100n)),
+      ),
+      vertices,
+    );
+
+    const exactIterator = await exactMatch.getIterator();
+    const compoundIterator = await compoundMatch.getIterator();
+    const exactIds = [];
+    const compoundIds = [];
+
+    for (const vertex of exactIterator) {
+      exactIds.push(vertex.id());
+    }
+    for (const vertex of compoundIterator) {
+      compoundIds.push(vertex.id());
+    }
+
+    expect(exactIds).toEqual([3n]);
+    expect(compoundIds).toEqual([0n]);
   });
 
   it('compares filtered vertex iterators by filtered offset', async () => {
