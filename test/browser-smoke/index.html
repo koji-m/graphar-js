@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>graphar-js browser smoke</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "graphar-js": "/dist/graphar.es.js",
+          "apache-arrow": "/node_modules/apache-arrow/Arrow.dom.mjs",
+          "flatbuffers": "/node_modules/flatbuffers/mjs/flatbuffers.js",
+          "js-yaml": "/node_modules/js-yaml/dist/js-yaml.mjs",
+          "parquet-wasm/esm": "/node_modules/parquet-wasm/esm/parquet_wasm.js",
+          "tslib": "/node_modules/tslib/tslib.es6.mjs"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main>
+      <h1>graphar-js browser smoke</h1>
+      <pre id="status">booting</pre>
+    </main>
+    <script type="module" src="/test/browser-smoke/smoke.js"></script>
+  </body>
+</html>

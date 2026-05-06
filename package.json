@@ -3,14 +3,21 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "main": "./dist/graphar.es.js",
+  "exports": {
+    ".": "./dist/graphar.es.js"
+  },
   "scripts": {
     "dev": "vite",
     "test": "vitest run",
+    "test:smoke-browser": "npm run build && node test/browser-smoke/run.mjs",
+    "test:smoke-package-root": "npm run build && vitest run test/package-root-smoke.test.js",
     "build": "vite build",
     "preview": "vite preview"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.12",
+    "playwright": "^1.59.1",
     "vite": "^8.0.4",
     "vitest": "^4.1.4"
   },
