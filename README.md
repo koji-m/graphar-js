@@ -1,6 +1,16 @@
 # graphar-js
 
-A JavaScript library for [Apache GraphAr](https://graphar.apache.org/).
+A Node-first JavaScript reader library for
+[Apache GraphAr](https://graphar.apache.org/).
+
+## Runtime Support
+
+- official first-milestone support: Node.js
+- experimental: browser usage
+
+The first npm milestone is focused on a stable Node.js reader package. Browser
+usage remains available for demos and smoke tests, but is not part of the
+first stable support contract.
 
 ## Current Status
 
@@ -88,6 +98,8 @@ For upstream `Vertex::IsValid` / `Edge::IsValid` parity, this JS port exposes
 The following APIs exist today but are not part of the intended reader v0
 stable package contract.
 
+- browser usage is still experimental even though the repository includes a
+  browser demo and a browser smoke test
 - edge-iterator traversal helpers `firstSrc(...)`, `firstDst(...)`,
   `nextSrc(...)`, and `nextDst(...)` are currently exposed on `EdgeIter`
   instances to support collection search behavior, but should be treated as
@@ -103,18 +115,18 @@ stable package contract.
   helper that mirrors the role of the upstream C++ utility, but is not part of
   the intended JS reader public API
 
-## Current Example
+## Node Example
 
-The current browser demo reads a GraphAr graph info file over HTTP, then:
+The current Node-first usage pattern is:
 
-1. loads the graph metadata with `GraphInfo.load`
-2. opens a vertex collection with `VerticesCollection.make`
-3. opens an edge collection with `EdgesCollection.make`
-4. prints a few sample vertices and edges
-5. shows high-level lookup by internal vertex id and edge search
-6. shows reading a partial edge collection by vertex chunk range
+1. initializes the Parquet WASM runtime
+2. loads the graph metadata with `GraphInfo.load`
+3. opens a vertex collection with `VerticesCollection.make`
+4. opens an edge collection with `EdgesCollection.make`
+5. performs high-level lookup and iteration
 
 ```js
+import { readFile } from 'node:fs/promises';
 import {
   AdjListType,
   EdgesCollection,
@@ -123,37 +135,24 @@ import {
   initWasm,
 } from 'graphar-js';
 
-await initWasm();
+await initWasm({
+  module_or_path: await readFile(
+    new URL('./node_modules/parquet-wasm/esm/parquet_wasm_bg.wasm', import.meta.url),
+  ),
+});
 
 const graphInfo = await GraphInfo.load({
-  path: 'http://localhost:9000/my-bucket/parquet/ldbc_sample.graph.yml',
+  path: '/absolute/path/to/graph/parquet/ldbc_sample.graph.yml',
 });
 
 const vertices = await VerticesCollection.make(graphInfo, 'person');
 console.log(vertices.size());
 
-const vertexIterator = await vertices.getIterator();
-for (const vertex of vertexIterator) {
-  console.log(
-    vertex.id(),
-    await vertex.property('id'),
-    await vertex.property('firstName'),
-  );
-  break;
-}
-
-const vertexBegin = await vertices.getIterator();
-console.log(
-  vertexBegin.id(),
-  await vertexBegin.property('firstName'),
-);
-vertexBegin.advance();
-
 const vertex = await vertices.find(3n);
 console.log(
   vertex.id(),
   await vertex.property('id'),
-  await vertex.label(),
+  await vertex.property('firstName'),
 );
 
 const edges = await EdgesCollection.make(
@@ -163,50 +162,34 @@ const edges = await EdgesCollection.make(
   'person',
   AdjListType.ORDERED_BY_SOURCE,
 );
-console.log(edges.size());
-
-const edgeIterator = await edges.getIterator();
-for await (const edgeIter of edgeIterator) {
-  console.log(
-    await edgeIter.source(),
-    await edgeIter.destination(),
-    await edgeIter.property('creationDate'),
-  );
-  break;
-}
-
-const begin = await edges.getIterator();
-const found = await edges.findSrc(0n, begin);
+const found = await edges.findSrc(0n, await edges.getIterator());
 if (!found.isEnd()) {
-  console.log(await found.source(), await found.destination());
-}
-
-const secondSourceChunk = await EdgesCollection.make(
-  graphInfo,
-  'person',
-  'knows',
-  'person',
-  AdjListType.ORDERED_BY_SOURCE,
-  1n,
-  2n,
-);
-const partialBegin = await secondSourceChunk.getIterator();
-if (!partialBegin.isEnd()) {
-  console.log(await partialBegin.source(), await partialBegin.destination());
+  console.log(
+    await found.source(),
+    await found.destination(),
+    await found.property('creationDate'),
+  );
 }
 ```
 
-For a runnable example, see [demo/main.js](./demo/main.js).
+## Experimental Browser Example
+
+The repository still includes a browser demo and an experimental browser smoke
+test. Browser usage currently assumes HTTP-accessible GraphAr assets and is not
+part of the first stable release contract.
+
+For a runnable browser demo, see [demo/main.js](./demo/main.js).
 
 ## Current Constraints
 
 The implementation is not ready for npm publish yet. The main current
 constraints are:
 
-- In browsers, graph info and payload files must be read through `http://` or
-  `https://`.
 - In Node.js, graph info and payload files may also be read from `file://...`
   URIs and absolute local filesystem paths such as `/tmp/graph/...`.
+- In browsers, graph info and payload files must be read through `http://` or
+  `https://`, but browser usage is still experimental rather than part of the
+  first stable support contract.
 - Relative local filesystem paths such as `./graph/...` are not supported.
   This matches the current C++ `FileSystemFromUriOrPath` constraint.
 - For local loading, graph-level metadata prefixes must also resolve to an
@@ -220,8 +203,10 @@ constraints are:
 - Payload reading is Parquet-only. The reader path now checks `file_type`
   explicitly and rejects `csv` / `orc` / `json` payloads with an unsupported
   error instead of silently treating them as Parquet.
-- The reader path is browser-oriented and depends on `parquet-wasm`; Node-based
-  checks need explicit WASM initialization.
+- Node.js usage requires explicit `initWasm(...)` before reading Parquet-backed
+  payloads.
+- Browser usage also depends on `parquet-wasm`, but the browser initialization
+  and dependency-resolution story is still considered experimental.
 - The intended package-root filesystem surface is `initWasm(...)` only.
   Filesystem resolution remains an internal reader detail; callers are expected
   to pass supported graph info paths into higher-level APIs such as
@@ -300,6 +285,21 @@ constraints are:
 - The public API is still being stabilized while the port progresses and is
   still being validated against the upstream C++ logic.
 
+## Test Gates
+
+The current Node-first release gate is:
+
+```bash
+npm run test:release-node
+```
+
+The browser smoke test remains available, but is experimental and should not be
+treated as part of the first stable support contract:
+
+```bash
+npm run test:smoke-browser:experimental
+```
+
 ## Local Demo
 
 Install dependencies:
@@ -314,8 +314,8 @@ Start the demo:
 npm run dev
 ```
 
-The demo page lets you enter a GraphAr graph info URL and inspect a small
-sample of the loaded graph. The default URL is:
+The experimental browser demo page lets you enter a GraphAr graph info URL and
+inspect a small sample of the loaded graph. The default URL is:
 
 ```text
 http://localhost:9000/my-bucket/parquet/ldbc_sample.graph.yml
@@ -323,11 +323,3 @@ http://localhost:9000/my-bucket/parquet/ldbc_sample.graph.yml
 
 To use the repository fixture with that URL, serve
 `test/fixtures/graphar-minimal` at `http://localhost:9000/my-bucket/`.
-
-## Peer Dependencies
-
-The package currently expects these peer dependencies:
-
-- `apache-arrow`
-- `js-yaml`
-- `parquet-wasm`

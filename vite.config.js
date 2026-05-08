@@ -10,7 +10,12 @@ export default defineConfig({
       formats: ['es'],
     },
     rollupOptions: {
-      external: ['apache-arrow', 'js-yaml', 'parquet-wasm'],
+      external: [
+        'apache-arrow',
+        'js-yaml',
+        'parquet-wasm',
+        'node:fs/promises',
+      ],
     },
   },
 });

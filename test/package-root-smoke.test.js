@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
-import { beforeAll, afterAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const distEntry = path.join(rootDir, 'dist', 'graphar.es.js');
@@ -24,53 +24,22 @@ function toPosixDirectoryPath(inputPath) {
   return `${inputPath.split(path.sep).join('/')}/`;
 }
 
-function createFixtureFetch(rootDir, baseUrl) {
-  const rootPrefix = `${baseUrl}`;
-  return async function fixtureFetch(input) {
-    const requestUrl =
-      typeof input === 'string' ? new URL(input) : new URL(input.url);
-    const relativePath = decodeURIComponent(requestUrl.pathname.replace(/^\/+/, ''));
-    const diskPath = path.join(rootDir, relativePath);
-    try {
-      const body = await readFile(diskPath);
-      if (relativePath === 'ldbc_sample.graph.yml') {
-        return new Response(
-          body.toString('utf8').replace('prefix: ./', `prefix: ${rootPrefix}`),
-          { status: 200, headers: { 'content-type': 'text/yaml' } },
-        );
-      }
-      return new Response(body, {
-        status: 200,
-        headers: { 'content-type': 'application/octet-stream' },
-      });
-    } catch {
-      return new Response('not found', { status: 404 });
-    }
-  };
-}
-
-async function loadFixtureGraphInfo(GraphInfo, baseUrl) {
+async function loadLocalFixtureGraphInfo(GraphInfo) {
+  const input = await readFile(path.join(fixtureDir, 'ldbc_sample.graph.yml'), 'utf8');
   return await GraphInfo.load({
-    path: new URL('ldbc_sample.graph.yml', baseUrl).href,
+    input: input.replace('prefix: ./', `prefix: ${toPosixDirectoryPath(fixtureDir)}`),
+    relativeLocation: toPosixDirectoryPath(fixtureDir),
   });
 }
 
 describe.skipIf(!existsSync(distEntry))('package-root smoke', () => {
   let pkg;
   let graphInfo;
-  let originalFetch;
-  const fixtureBaseUrl = 'http://fixture.test/';
 
   beforeAll(async () => {
-    originalFetch = globalThis.fetch;
-    globalThis.fetch = createFixtureFetch(fixtureDir, fixtureBaseUrl);
     pkg = await import('graphar-js');
     await pkg.initWasm({ module_or_path: await readFile(wasmPath) });
-    graphInfo = await loadFixtureGraphInfo(pkg.GraphInfo, fixtureBaseUrl);
-  });
-
-  afterAll(async () => {
-    globalThis.fetch = originalFetch;
+    graphInfo = await loadLocalFixtureGraphInfo(pkg.GraphInfo);
   });
 
   it('exposes the intended reader v0 package-root surface', () => {
