@@ -77,6 +77,29 @@ describe('AdjacentList', () => {
 });
 
 describe('VertexInfo', () => {
+  it('uses the vertex type as the default prefix when omitted', () => {
+    const vertexInfo = VertexInfo.load({
+      type: 'person',
+      chunk_size: 100,
+      property_groups: [
+        {
+          file_type: 'parquet',
+          properties: [
+            {
+              name: 'id',
+              data_type: 'int64',
+              is_primary: true,
+            },
+          ],
+        },
+      ],
+      version: 'gar/v1',
+    });
+
+    expect(vertexInfo.prefix).toBe('person/');
+    expect(vertexInfo.getVerticesNumFilePath()).toBe('person/vertex_count');
+  });
+
   it('loads metadata from a YAML-equivalent object', () => {
     const vertexInfo = VertexInfo.load({
       type: 'person',
@@ -190,6 +213,43 @@ describe('VertexInfo', () => {
 });
 
 describe('EdgeInfo', () => {
+  it('uses the edge triplet as the default prefix when omitted', () => {
+    const edgeInfo = EdgeInfo.load({
+      src_type: 'person',
+      edge_type: 'knows',
+      dst_type: 'person',
+      chunk_size: 1024,
+      src_chunk_size: 100,
+      dst_chunk_size: 100,
+      directed: true,
+      adj_lists: [
+        {
+          ordered: true,
+          aligned_by: 'src',
+          file_type: 'parquet',
+        },
+      ],
+      property_groups: [
+        {
+          file_type: 'parquet',
+          properties: [
+            {
+              name: 'creationDate',
+              data_type: 'string',
+              is_primary: false,
+            },
+          ],
+        },
+      ],
+      version: 'gar/v1',
+    });
+
+    expect(edgeInfo.prefix).toBe('person_knows_person/');
+    expect(edgeInfo.getAdjListPathPrefix(AdjListType.ORDERED_BY_SOURCE)).toBe(
+      'person_knows_person/ordered_by_source/adj_list/',
+    );
+  });
+
   it('loads metadata from a YAML-equivalent object', () => {
     const edgeInfo = EdgeInfo.load({
       src_type: 'person',

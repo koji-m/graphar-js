@@ -24,6 +24,11 @@ At this point, the library can:
 - validate GraphAr metadata for `file_type` and GraphInfo structural
   constraints during load, following the current upstream C++ rules where this
   port already implements them
+- default omitted metadata prefixes following the current upstream C++ rules:
+  property-group prefixes default to joined property names, adjacency-list
+  prefixes default to the adjacency-list type name, vertex prefixes default to
+  `<vertex-type>/`, and edge prefixes default to
+  `<src>_<edge>_<dst>/`
 - read vertex property chunks
 - read vertex label chunks
 - read edge topology chunks
@@ -196,6 +201,13 @@ constraints are:
   absolute local path or `file://...`. A graph YAML with `prefix: ./` may work
   over HTTP but is expected to fail on the local reader path, matching the
   current upstream C++ behavior.
+- Nested vertex and edge metadata may omit their own `prefix` fields. In that
+  case the loader applies the same defaulting rules as the upstream C++
+  implementation before validation and before building payload paths.
+- For graph-level metadata loaded over `http://` or `https://`, this JS port
+  intentionally resolves relative graph `prefix` values such as `./` against
+  the graph info URL. This is a current JS-vs-C++ parity difference that is
+  kept for the Node-first/HTTP reader path.
 - GraphInfo metadata validation currently rejects unsupported storage
   `file_type` values in `property_groups` and `adj_lists`, plus the current
   C++-mirrored CSV restrictions such as list payload types and non-single

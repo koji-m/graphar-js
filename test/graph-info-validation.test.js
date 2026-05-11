@@ -120,6 +120,23 @@ describe('GraphInfo metadata validation', () => {
     ).toThrow(/Invalid vertex info metadata/);
   });
 
+  it('accepts omitted vertex prefixes and validates after defaulting them', () => {
+    const vertexInfo = VertexInfo.load({
+      type: 'person',
+      chunk_size: 100,
+      property_groups: [
+        {
+          file_type: 'parquet',
+          properties: [{ name: 'id', data_type: 'int64', is_primary: true }],
+        },
+      ],
+      version: 'gar/v1',
+    });
+
+    expect(vertexInfo.isValidated()).toBe(true);
+    expect(vertexInfo.prefix).toBe('person/');
+  });
+
   it('rejects non-single cardinality for edge properties during EdgeInfo load', () => {
     expect(() =>
       EdgeInfo.load({
@@ -187,5 +204,34 @@ describe('GraphInfo metadata validation', () => {
         adj_lists: [{ ordered: true, aligned_by: 'src', file_type: 'json' }],
       }),
     ).toThrow(/Invalid edge info metadata/);
+  });
+
+  it('accepts omitted edge prefixes and validates after defaulting them', () => {
+    const edgeInfo = EdgeInfo.load({
+      src_type: 'person',
+      edge_type: 'knows',
+      dst_type: 'person',
+      chunk_size: 1024,
+      src_chunk_size: 100,
+      dst_chunk_size: 100,
+      directed: true,
+      adj_lists: [{ ordered: true, aligned_by: 'src', file_type: 'parquet' }],
+      property_groups: [
+        {
+          file_type: 'parquet',
+          properties: [
+            {
+              name: 'creationDate',
+              data_type: 'string',
+              is_primary: false,
+            },
+          ],
+        },
+      ],
+      version: 'gar/v1',
+    });
+
+    expect(edgeInfo.isValidated()).toBe(true);
+    expect(edgeInfo.prefix).toBe('person_knows_person/');
   });
 });

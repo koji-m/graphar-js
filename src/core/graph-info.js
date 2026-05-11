@@ -134,11 +134,14 @@ class VertexInfo {
     Object.assign(this, {
       type,
       chunkSize,
-      prefix,
+      prefix: prefix ?? '',
       version,
       labels,
       propertyGroups,
     });
+    if (!this.prefix) {
+      this.prefix = `${this.type}/`;
+    }
   }
 
   static load(vertexMeta) {
@@ -238,11 +241,14 @@ class EdgeInfo {
       srcChunkSize,
       dstChunkSize,
       directed,
-      prefix,
+      prefix: prefix ?? '',
       version,
       adjacentList,
       propertyGroups,
     });
+    if (!this.prefix) {
+      this.prefix = `${this.srcType}_${this.edgeType}_${this.dstType}/`;
+    }
     this.adjacentListTypeToIndex = Object.fromEntries(
       this.adjacentList.map((adjList, index) => [adjList.type, index]),
     );
@@ -256,7 +262,7 @@ class EdgeInfo {
     const srcChunkSize = edgeMeta.src_chunk_size;
     const dstChunkSize = edgeMeta.dst_chunk_size;
     const directed = edgeMeta.directed;
-    const prefix = edgeMeta.prefix ?? '';
+    const prefix = edgeMeta.prefix;
     const version = InfoVersion.parse(edgeMeta.version);
 
     const adjacentList = Array.isArray(edgeMeta.adj_lists)

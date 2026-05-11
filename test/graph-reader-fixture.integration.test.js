@@ -1,4 +1,5 @@
-import { readFile } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -35,6 +36,88 @@ async function loadLocalFixtureGraphInfo() {
     input: input.replace('prefix: ./', `prefix: ${toPosixDirectoryPath(fixtureDir)}`),
     relativeLocation: toPosixDirectoryPath(fixtureDir),
   });
+}
+
+async function makeDefaultPrefixFixtureDir() {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'graphar-js-default-prefix-'));
+
+  await cp(path.join(fixtureDir, 'vertex', 'person'), path.join(tempDir, 'person'), {
+    recursive: true,
+  });
+  await cp(
+    path.join(fixtureDir, 'edge', 'person_knows_person'),
+    path.join(tempDir, 'person_knows_person'),
+    { recursive: true },
+  );
+
+  await writeFile(
+    path.join(tempDir, 'person.vertex.yml'),
+    `type: person
+chunk_size: 2
+labels:
+  - active
+  - engineer
+  - contractor
+property_groups:
+  - properties:
+      - name: id
+        data_type: int64
+        is_primary: true
+    file_type: parquet
+  - properties:
+      - name: firstName
+        data_type: string
+        is_primary: false
+    file_type: parquet
+version: gar/v1
+`,
+  );
+
+  await writeFile(
+    path.join(tempDir, 'person_knows_person.edge.yml'),
+    `src_type: person
+edge_type: knows
+dst_type: person
+chunk_size: 2
+src_chunk_size: 2
+dst_chunk_size: 2
+directed: true
+adj_lists:
+  - ordered: true
+    aligned_by: src
+    file_type: parquet
+  - ordered: true
+    aligned_by: dst
+    file_type: parquet
+  - ordered: false
+    aligned_by: src
+    file_type: parquet
+  - ordered: false
+    aligned_by: dst
+    file_type: parquet
+property_groups:
+  - file_type: parquet
+    properties:
+      - name: creationDate
+        data_type: string
+        is_primary: false
+version: gar/v1
+`,
+  );
+
+  await writeFile(
+    path.join(tempDir, 'ldbc_sample.graph.yml'),
+    `name: ldbc_sample
+prefix: ${toPosixDirectoryPath(tempDir)}
+vertices:
+  - person.vertex.yml
+edges:
+  - person_knows_person.edge.yml
+version: gar/v1
+`,
+  );
+
+  return tempDir;
 }
 
 async function collectEdges(collection) {
@@ -269,6 +352,36 @@ describe('Graph reader minimal fixture integration', () => {
       expect(edges.size()).toBe(6n);
       expect(partialEdges.size()).toBe(2n);
     }
+  });
+
+  it('reads payloads through defaulted nested prefixes', async () => {
+    const tempDir = await makeDefaultPrefixFixtureDir();
+    const graphInfoWithDefaults = await GraphInfo.load({
+      path: path.join(tempDir, 'ldbc_sample.graph.yml'),
+    });
+
+    expect(graphInfoWithDefaults.getVertexInfo('person').prefix).toBe('person/');
+    expect(
+      graphInfoWithDefaults.getEdgeInfo('person', 'knows', 'person').prefix,
+    ).toBe('person_knows_person/');
+
+    const edges = await EdgesCollection.make(
+      graphInfoWithDefaults,
+      'person',
+      'knows',
+      'person',
+      AdjListType.ORDERED_BY_SOURCE,
+    );
+
+    expect(edges.edgeNum).toBe(6n);
+    expect(await collectEdges(edges)).toEqual([
+      [0n, 1n],
+      [0n, 2n],
+      [1n, 3n],
+      [2n, 0n],
+      [3n, 4n],
+      [4n, 0n],
+    ]);
   });
 
   it('allows empty edge collections for empty vertex chunk ranges', async () => {

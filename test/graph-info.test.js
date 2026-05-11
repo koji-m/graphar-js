@@ -169,4 +169,92 @@ describe('GraphInfo', () => {
     );
   });
 
+  it('defaults nested vertex and edge prefixes during graph load', async () => {
+    fs.readFileAsText.mockClear();
+    files.set(
+      'http://example.test/graphs/person.vertex.yml',
+      `type: person
+chunk_size: 100
+property_groups:
+  - file_type: parquet
+    properties:
+      - name: id
+        data_type: int64
+        is_primary: true
+version: gar/v1
+`,
+    );
+    files.set(
+      'http://example.test/graphs/person_knows_person.edge.yml',
+      `src_type: person
+edge_type: knows
+dst_type: person
+chunk_size: 1024
+src_chunk_size: 100
+dst_chunk_size: 100
+directed: true
+adj_lists:
+  - ordered: true
+    aligned_by: src
+    file_type: parquet
+property_groups:
+  - file_type: parquet
+    properties:
+      - name: creationDate
+        data_type: string
+        is_primary: false
+version: gar/v1
+`,
+    );
+
+    const graphInfo = await GraphInfo.load({
+      input: graphYaml(),
+      relativeLocation: 'http://example.test/graphs/',
+    });
+
+    expect(graphInfo.prefix).toBe('http://example.test/graphs/');
+    expect(graphInfo.getVertexInfo('person').prefix).toBe('person/');
+    expect(graphInfo.getEdgeInfo('person', 'knows', 'person').prefix).toBe(
+      'person_knows_person/',
+    );
+
+    files.set(
+      'http://example.test/graphs/person.vertex.yml',
+      `type: person
+chunk_size: 100
+prefix: vertex/person/
+property_groups:
+  - file_type: parquet
+    properties:
+      - name: id
+        data_type: int64
+        is_primary: true
+version: gar/v1
+`,
+    );
+    files.set(
+      'http://example.test/graphs/person_knows_person.edge.yml',
+      `src_type: person
+edge_type: knows
+dst_type: person
+chunk_size: 1024
+src_chunk_size: 100
+dst_chunk_size: 100
+directed: true
+prefix: edge/person_knows_person/
+adj_lists:
+  - ordered: true
+    aligned_by: src
+    file_type: parquet
+property_groups:
+  - file_type: parquet
+    properties:
+      - name: creationDate
+        data_type: string
+        is_primary: false
+version: gar/v1
+`,
+    );
+  });
+
 });
