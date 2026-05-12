@@ -249,4 +249,63 @@ describe('graph-reader isValid parity', () => {
     await expect(vertex.isValid('feature')).resolves.toBe(true);
     await expect(iterator.isValid('feature')).resolves.toBe(true);
   });
+
+  it('supports propertyAs for typed scalar access on vertices', async () => {
+    const prefix = 'http://example.test/graphs/';
+    seedGraphTables(prefix);
+    const vertexInfo = makeVertexInfo();
+    const graphInfo = new GraphInfo('g', [vertexInfo], [], [], prefix);
+
+    const vertices = await VerticesCollection.make(graphInfo, 'person');
+    const vertex = await vertices.find(0n);
+    const iterator = await vertices.getIterator();
+
+    await expect(vertex.propertyAs('int64', 'id')).resolves.toBe(100n);
+    await expect(iterator.propertyAs('int64', 'id')).resolves.toBe(100n);
+    await expect(vertex.propertyAs('string', 'id')).rejects.toThrow(
+      /Property type of id is not matched/,
+    );
+    await expect(vertex.propertyAs('string', 'nickname')).rejects.toThrow(
+      /The value of the nickname is null/,
+    );
+    await expect(vertex.propertyAs('string', 'missing')).rejects.toThrow(
+      /Vertex property missing not found in vertex info/,
+    );
+  });
+
+  it('supports propertyAs for typed edge and list access', async () => {
+    const prefix = 'http://example.test/graphs/';
+    seedGraphTables(prefix);
+    seedListVertexTables(prefix);
+    const vertexInfo = makeListVertexInfo();
+    const edgeInfo = makeEdgeInfo();
+    const graphInfo = new GraphInfo('g', [vertexInfo], [edgeInfo], [], prefix);
+
+    const vertices = await VerticesCollection.make(graphInfo, 'person');
+    const vertex = await vertices.find(0n);
+    const edges = await EdgesCollection.make(
+      graphInfo,
+      'person',
+      'knows',
+      'person',
+      AdjListType.UNORDERED_BY_SOURCE,
+    );
+    const iterator = await edges.getIterator();
+
+    await expect(vertex.propertyAs('list<float>', 'feature')).resolves.toBeInstanceOf(
+      PropertyList,
+    );
+    await expect(vertex.propertyAs('float', 'feature')).rejects.toThrow(
+      /Property type of feature is not matched/,
+    );
+    await expect(iterator.propertyAs('string', 'creationDate')).resolves.toBe(
+      '2020-01-01',
+    );
+    await expect(iterator.propertyAs('int64', 'creationDate')).rejects.toThrow(
+      /Property type of creationDate is not matched/,
+    );
+    await expect(iterator.propertyAs('int64', 'weight')).rejects.toThrow(
+      /The value of the weight is null/,
+    );
+  });
 });

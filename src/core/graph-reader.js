@@ -10,7 +10,7 @@ import {
   getVertexChunkNumFromEdge,
   getVertexNumFromVertex,
 } from './reader-util.js';
-import { AdjListType, Type } from './types.js';
+import { AdjListType, DataType, Type } from './types.js';
 import { IndexConverter, MAX_INT64 } from './util.js';
 
 function isListLikeProperty(propertyDefinition) {
@@ -18,6 +18,38 @@ function isListLikeProperty(propertyDefinition) {
     propertyDefinition?.type?.id === Type.LIST ||
     (propertyDefinition?.cardinality != null &&
       propertyDefinition.cardinality !== 'single')
+  );
+}
+
+function dataTypesEqual(left, right) {
+  if (!left || !right || left.id !== right.id) {
+    return false;
+  }
+  if (left.id === Type.LIST) {
+    return dataTypesEqual(left.child, right.child);
+  }
+  if (left.id === Type.USER_DEFINED) {
+    return left.userDefinedTypeName === right.userDefinedTypeName;
+  }
+  return true;
+}
+
+function resolveRequestedType(type) {
+  if (typeof type === 'string') {
+    return DataType.typeNameToDataType(type);
+  }
+  if (type instanceof DataType) {
+    return type;
+  }
+  throw new Error(`Unsupported property type request: ${type}`);
+}
+
+function assertPropertyTypeMatches(property, requestedType, propertyDefinition) {
+  if (dataTypesEqual(requestedType, propertyDefinition.type)) {
+    return;
+  }
+  throw new Error(
+    `Property type of ${property} is not matched. Expected ${requestedType.toTypeName()}, actual ${propertyDefinition.type.toTypeName()}.`,
   );
 }
 
@@ -114,6 +146,38 @@ class Vertex {
       return value;
     }
     throw new Error(`Vertex property ${property} not found in vertex info.`);
+  }
+
+  async propertyAs(type, property) {
+    const requestedType = resolveRequestedType(type);
+    let arrowArray = null;
+    let propertyDefinition = null;
+    for (const reader of this.readers) {
+      reader.seek(this.curOffset);
+      const chunkTable = await reader.getChunk();
+      arrowArray = chunkTable.batches[0]?.getChild(property);
+      propertyDefinition = reader.propertyGroup.properties.find(
+        (candidate) => candidate.name === property,
+      );
+      if (arrowArray) {
+        break;
+      }
+    }
+    if (!arrowArray) {
+      throw new Error(`Vertex property ${property} not found in vertex info.`);
+    }
+
+    const value = arrowArray.get(0);
+    if (!isListLikeProperty(propertyDefinition) && value === null) {
+      throw new Error(`The value of the ${property} is null.`);
+    }
+
+    assertPropertyTypeMatches(property, requestedType, propertyDefinition);
+
+    if (isListLikeProperty(propertyDefinition)) {
+      return new PropertyList(value);
+    }
+    return value;
   }
 
   async isValid(property) {
@@ -214,6 +278,11 @@ class VertexIter {
   async property(property) {
     this.vertex.curOffset = this.currentVertexOffset();
     return await this.vertex.property(property);
+  }
+
+  async propertyAs(type, property) {
+    this.vertex.curOffset = this.currentVertexOffset();
+    return await this.vertex.propertyAs(type, property);
   }
 
   async isValid(property) {
@@ -756,6 +825,39 @@ class EdgeIter {
       return value;
     }
     throw new Error(`Edge property ${property} not found in edge info.`);
+  }
+
+  async propertyAs(type, property) {
+    this.ensureNotEnd();
+    const requestedType = resolveRequestedType(type);
+    let arrowArray = null;
+    let propertyDefinition = null;
+    for (const reader of this.propertyReaders) {
+      await reader.seek(this.curOffset);
+      const chunkTable = await reader.getChunk();
+      arrowArray = chunkTable?.batches[0]?.getChild(property) ?? null;
+      propertyDefinition = reader.propertyGroup.properties.find(
+        (candidate) => candidate.name === property,
+      );
+      if (arrowArray) {
+        break;
+      }
+    }
+    if (!arrowArray) {
+      throw new Error(`Edge property ${property} not found in edge info.`);
+    }
+
+    const value = arrowArray.get(0);
+    if (!isListLikeProperty(propertyDefinition) && value === null) {
+      throw new Error(`The value of the ${property} is null.`);
+    }
+
+    assertPropertyTypeMatches(property, requestedType, propertyDefinition);
+
+    if (isListLikeProperty(propertyDefinition)) {
+      return new PropertyList(value);
+    }
+    return value;
   }
 
   async isValid(property) {
