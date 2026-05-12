@@ -1,7 +1,11 @@
 import * as arrow from 'apache-arrow';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EdgeInfo, GraphInfo, VertexInfo } from '../src/core/graph-info.js';
-import { EdgesCollection, VerticesCollection } from '../src/core/graph-reader.js';
+import {
+  EdgesCollection,
+  PropertyList,
+  VerticesCollection,
+} from '../src/core/graph-reader.js';
 import { AdjListType } from '../src/core/types.js';
 
 const countsByPath = new Map();
@@ -86,6 +90,28 @@ function makeEdgeInfo() {
   });
 }
 
+function makeListVertexInfo() {
+  return VertexInfo.load({
+    type: 'person',
+    chunk_size: 1,
+    prefix: 'vertex/person/',
+    property_groups: [
+      {
+        prefix: 'props/',
+        file_type: 'parquet',
+        properties: [
+          {
+            name: 'feature',
+            data_type: 'list<float>',
+            is_primary: false,
+          },
+        ],
+      },
+    ],
+    version: 'gar/v1',
+  });
+}
+
 function seedGraphTables(basePrefix) {
   countsByPath.set(`${basePrefix}vertex/person/vertex_count`, 1n);
   countsByPath.set(
@@ -121,6 +147,17 @@ function seedGraphTables(basePrefix) {
   );
 }
 
+function seedListVertexTables(basePrefix) {
+  countsByPath.set(`${basePrefix}vertex/person/vertex_count`, 1n);
+  tablesByPath.set(
+    `${basePrefix}vertex/person/props/chunk0`,
+    arrow.tableFromArrays({
+      _graphArVertexIndex: [0n],
+      feature: [[1.5, 2.5, 3.5]],
+    }),
+  );
+}
+
 describe('graph-reader isValid parity', () => {
   beforeEach(() => {
     countsByPath.clear();
@@ -142,12 +179,18 @@ describe('graph-reader isValid parity', () => {
 
     await expect(vertex.isValid('id')).resolves.toBe(true);
     await expect(vertex.isValid('nickname')).resolves.toBe(false);
+    await expect(vertex.property('nickname')).rejects.toThrow(
+      /The value of the nickname is null/,
+    );
     await expect(vertex.isValid('missing')).rejects.toThrow(
       /Vertex property missing not found in vertex info/,
     );
 
     await expect(iterator.isValid('id')).resolves.toBe(true);
     await expect(iterator.isValid('nickname')).resolves.toBe(false);
+    await expect(iterator.property('nickname')).rejects.toThrow(
+      /The value of the nickname is null/,
+    );
     await expect(end.isValid('id')).rejects.toThrow(/Vertex iterator is at end/);
   });
 
@@ -170,11 +213,40 @@ describe('graph-reader isValid parity', () => {
 
     await expect(iterator.isValid('creationDate')).resolves.toBe(true);
     await expect(iterator.isValid('weight')).resolves.toBe(false);
+    await expect(iterator.property('weight')).rejects.toThrow(
+      /The value of the weight is null/,
+    );
     await expect(iterator.isValid('missing')).rejects.toThrow(
       /Edge property missing not found in edge info/,
     );
     await expect(end.isValid('creationDate')).rejects.toThrow(
       /Edge iterator is at end/,
     );
+  });
+
+  it('wraps list properties in a dedicated PropertyList value', async () => {
+    const prefix = 'http://example.test/graphs/';
+    seedListVertexTables(prefix);
+    const vertexInfo = makeListVertexInfo();
+    const graphInfo = new GraphInfo('g', [vertexInfo], [], [], prefix);
+
+    const vertices = await VerticesCollection.make(graphInfo, 'person');
+    const vertex = await vertices.find(0n);
+    const iterator = await vertices.getIterator();
+
+    const vertexValue = await vertex.property('feature');
+    const iteratorValue = await iterator.property('feature');
+
+    expect(vertexValue).toBeInstanceOf(PropertyList);
+    expect(vertexValue.length).toBe(3);
+    expect(vertexValue.size()).toBe(3);
+    expect(vertexValue.at(0)).toBe(1.5);
+    expect(vertexValue.toArray()).toEqual([1.5, 2.5, 3.5]);
+    expect([...vertexValue]).toEqual([1.5, 2.5, 3.5]);
+
+    expect(iteratorValue).toBeInstanceOf(PropertyList);
+    expect(iteratorValue.toArray()).toEqual([1.5, 2.5, 3.5]);
+    await expect(vertex.isValid('feature')).resolves.toBe(true);
+    await expect(iterator.isValid('feature')).resolves.toBe(true);
   });
 });

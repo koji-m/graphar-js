@@ -10,8 +10,46 @@ import {
   getVertexChunkNumFromEdge,
   getVertexNumFromVertex,
 } from './reader-util.js';
-import { AdjListType } from './types.js';
+import { AdjListType, Type } from './types.js';
 import { IndexConverter, MAX_INT64 } from './util.js';
+
+function isListLikeProperty(propertyDefinition) {
+  return (
+    propertyDefinition?.type?.id === Type.LIST ||
+    (propertyDefinition?.cardinality != null &&
+      propertyDefinition.cardinality !== 'single')
+  );
+}
+
+class PropertyList {
+  constructor(values) {
+    this.values = Array.isArray(values) ? [...values] : Array.from(values ?? []);
+  }
+
+  get length() {
+    return this.values.length;
+  }
+
+  size() {
+    return this.values.length;
+  }
+
+  at(index) {
+    return this.values.at(index);
+  }
+
+  toArray() {
+    return [...this.values];
+  }
+
+  toJSON() {
+    return this.toArray();
+  }
+
+  [Symbol.iterator]() {
+    return this.values[Symbol.iterator]();
+  }
+}
 
 class Vertex {
   constructor({ readers, labelReader, labels, curOffset }) {
@@ -53,16 +91,27 @@ class Vertex {
 
   async property(property) {
     let arrowArray = null;
+    let propertyDefinition = null;
     for (const reader of this.readers) {
       reader.seek(this.curOffset);
       const chunkTable = await reader.getChunk();
       arrowArray = chunkTable.batches[0]?.getChild(property);
+      propertyDefinition = reader.propertyGroup.properties.find(
+        (candidate) => candidate.name === property,
+      );
       if (arrowArray) {
         break;
       }
     }
     if (arrowArray) {
-      return arrowArray.get(0);
+      const value = arrowArray.get(0);
+      if (isListLikeProperty(propertyDefinition)) {
+        return new PropertyList(value);
+      }
+      if (value === null) {
+        throw new Error(`The value of the ${property} is null.`);
+      }
+      return value;
     }
     throw new Error(`Vertex property ${property} not found in vertex info.`);
   }
@@ -78,7 +127,7 @@ class Vertex {
       const propertyDefinition = reader.propertyGroup.properties.find(
         (candidate) => candidate.name === property,
       );
-      if (propertyDefinition?.cardinality !== 'single') {
+      if (isListLikeProperty(propertyDefinition)) {
         return true;
       }
       return arrowArray.get(0) !== null;
@@ -684,16 +733,27 @@ class EdgeIter {
   async property(property) {
     this.ensureNotEnd();
     let arrowArray = null;
+    let propertyDefinition = null;
     for (const reader of this.propertyReaders) {
       await reader.seek(this.curOffset);
       const chunkTable = await reader.getChunk();
       arrowArray = chunkTable?.batches[0]?.getChild(property) ?? null;
+      propertyDefinition = reader.propertyGroup.properties.find(
+        (candidate) => candidate.name === property,
+      );
       if (arrowArray) {
         break;
       }
     }
     if (arrowArray) {
-      return arrowArray.get(0);
+      const value = arrowArray.get(0);
+      if (isListLikeProperty(propertyDefinition)) {
+        return new PropertyList(value);
+      }
+      if (value === null) {
+        throw new Error(`The value of the ${property} is null.`);
+      }
+      return value;
     }
     throw new Error(`Edge property ${property} not found in edge info.`);
   }
@@ -710,7 +770,7 @@ class EdgeIter {
       const propertyDefinition = reader.propertyGroup.properties.find(
         (candidate) => candidate.name === property,
       );
-      if (propertyDefinition?.cardinality !== 'single') {
+      if (isListLikeProperty(propertyDefinition)) {
         return true;
       }
       return arrowArray.get(0) !== null;
@@ -1400,4 +1460,4 @@ class UBDEdgesCollection extends EdgesCollection {
   }
 }
 
-export { EdgesCollection, VerticesCollection };
+export { EdgesCollection, PropertyList, VerticesCollection };

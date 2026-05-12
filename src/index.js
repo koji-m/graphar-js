@@ -19,5 +19,9 @@ export {
   PropertyGroup,
   VertexInfo,
 } from './core/graph-info.js';
-export { EdgesCollection, VerticesCollection } from './core/graph-reader.js';
+export {
+  EdgesCollection,
+  PropertyList,
+  VerticesCollection,
+} from './core/graph-reader.js';
 export { AdjListType, FileType } from './core/types.js';
