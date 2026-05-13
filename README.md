@@ -55,10 +55,40 @@ At this point, the library can:
 - iterate edges for the four GraphAr adjacency list layouts:
   `ordered_by_source`, `ordered_by_dest`, `unordered_by_source`, and
   `unordered_by_dest`
+- read Parquet payload files on the actual reader path, while keeping the
+  payload-format gap against upstream C++ explicit
 
 The current integration fixture lives under
 [`test/fixtures/graphar-minimal`](./test/fixtures/graphar-minimal). It is a
 small Parquet-backed GraphAr graph used by tests and by the current demo.
+
+## Payload Format Matrix
+
+GraphAr metadata can mention several payload `file_type` values, but the
+current JS reader does not implement all of them on the actual data path yet.
+For the current Node-first milestone, the practical support contract is
+Parquet-only.
+
+| Payload format | GraphAr spec | Accepted by JS metadata load | Readable by JS payload reader | Current behavior |
+| --- | --- | --- | --- | --- |
+| `parquet` | yes | yes | yes | Fully supported on the current reader path |
+| `orc` | yes | yes | no | Metadata loads successfully, but payload reading fails with an explicit unsupported-format error |
+| `csv` | yes | partly | no | Metadata loads only for the current C++-mirrored subset: no list payload types and no non-single cardinality in property groups; payload reading still fails with an explicit unsupported-format error |
+| `json` | yes | no | no | Rejected during metadata validation before any payload read is attempted |
+
+This means the current implementation has two distinct format boundaries:
+
+- metadata acceptance boundary:
+  `parquet` and `orc` are accepted in `property_groups` and `adj_lists`; `csv`
+  is accepted only for the subset allowed by the current metadata validation
+  rules; `json` is rejected at metadata load time
+- payload reader boundary:
+  `readFileAsTable(...)` only reads `parquet` today and explicitly rejects
+  `csv`, `orc`, and `json`
+
+The split is intentional for now. It keeps the metadata layer close to the
+upstream GraphAr/C++ rules where already implemented, while making the actual
+reader contract explicit: the current Node-first reader is Parquet-backed.
 
 ## Reader v0 Public Surface
 
@@ -212,9 +242,13 @@ constraints are:
   `file_type` values in `property_groups` and `adj_lists`, plus the current
   C++-mirrored CSV restrictions such as list payload types and non-single
   cardinality in CSV property groups.
-- Payload reading is Parquet-only. The reader path now checks `file_type`
-  explicitly and rejects `csv` / `orc` / `json` payloads with an unsupported
-  error instead of silently treating them as Parquet.
+- Payload format parity is intentionally split today:
+  metadata load accepts `parquet`, `orc`, and the current valid subset of
+  `csv`, but the actual payload reader is Parquet-only.
+- `json` is currently a metadata-layer rejection, while `csv` and `orc` are
+  currently reader-layer rejections.
+- The reader path checks `file_type` explicitly and rejects unsupported
+  payloads with an error instead of silently treating them as Parquet.
 - Node.js usage requires explicit `initWasm(...)` before reading Parquet-backed
   payloads.
 - Browser usage also depends on `parquet-wasm`, but the browser initialization
