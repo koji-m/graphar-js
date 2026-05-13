@@ -12,6 +12,126 @@ function isStructuredExpression(filter) {
   );
 }
 
+function makePropertyExpression(name) {
+  return {
+    type: 'property',
+    name,
+  };
+}
+
+function makeLiteralExpression(value) {
+  return {
+    type: 'literal',
+    value,
+  };
+}
+
+function makeBinaryExpression(type, lhs, rhs) {
+  return {
+    type,
+    lhs,
+    rhs,
+  };
+}
+
+function normalizeStructuredExpression(filter) {
+  switch (filter.type) {
+    case 'property':
+    case 'literal':
+      return filter;
+    case 'not':
+      return {
+        type: 'not',
+        expr: normalizeFilterExpression(filter.expr),
+      };
+    case 'and':
+    case 'or':
+    case 'eq':
+    case 'ne':
+    case 'gt':
+    case 'gte':
+    case 'lt':
+    case 'lte':
+      return {
+        type: filter.type,
+        lhs: normalizeFilterExpression(filter.lhs),
+        rhs: normalizeFilterExpression(filter.rhs),
+      };
+    default:
+      throw new Error(`Unsupported expression type: ${filter.type}`);
+  }
+}
+
+function normalizeLegacyFilter(filter) {
+  switch (filter.op) {
+    case 'and':
+    case 'or': {
+      const normalizedChildren = (filter.filters ?? []).map(
+        normalizeFilterExpression,
+      );
+      if (normalizedChildren.length === 0) {
+        return makeLiteralExpression(filter.op === 'and');
+      }
+      let expression = normalizedChildren[0];
+      for (const child of normalizedChildren.slice(1)) {
+        expression = makeBinaryExpression(filter.op, expression, child);
+      }
+      return expression;
+    }
+    case 'not':
+      return {
+        type: 'not',
+        expr: normalizeFilterExpression(filter.filter),
+      };
+    case 'eq':
+    case 'ne':
+    case 'gt':
+    case 'gte':
+    case 'lt':
+    case 'lte':
+      return makeBinaryExpression(
+        filter.op,
+        makePropertyExpression(filter.column),
+        makeLiteralExpression(filter.value),
+      );
+    case 'in': {
+      const values = filter.values ?? [];
+      if (values.length === 0) {
+        return makeLiteralExpression(false);
+      }
+      let expression = makeBinaryExpression(
+        'eq',
+        makePropertyExpression(filter.column),
+        makeLiteralExpression(values[0]),
+      );
+      for (const value of values.slice(1)) {
+        expression = makeBinaryExpression(
+          'or',
+          expression,
+          makeBinaryExpression(
+            'eq',
+            makePropertyExpression(filter.column),
+            makeLiteralExpression(value),
+          ),
+        );
+      }
+      return expression;
+    }
+    default:
+      throw new Error(`Unsupported filter operator: ${filter.op}`);
+  }
+}
+
+function normalizeFilterExpression(filter) {
+  if (filter == null) {
+    return null;
+  }
+  if (isStructuredExpression(filter)) {
+    return normalizeStructuredExpression(filter);
+  }
+  return normalizeLegacyFilter(filter);
+}
+
 function getStructuredExpressionColumns(filter) {
   switch (filter.type) {
     case 'property':
@@ -19,7 +139,7 @@ function getStructuredExpressionColumns(filter) {
     case 'literal':
       return [];
     case 'not':
-      return getFilterColumns(filter.expr);
+      return getStructuredExpressionColumns(filter.expr);
     case 'and':
     case 'or':
     case 'eq':
@@ -29,8 +149,8 @@ function getStructuredExpressionColumns(filter) {
     case 'lt':
     case 'lte':
       return unique([
-        ...getFilterColumns(filter.lhs),
-        ...getFilterColumns(filter.rhs),
+        ...getStructuredExpressionColumns(filter.lhs),
+        ...getStructuredExpressionColumns(filter.rhs),
       ]);
     default:
       throw new Error(`Unsupported expression type: ${filter.type}`);
@@ -38,31 +158,11 @@ function getStructuredExpressionColumns(filter) {
 }
 
 function getFilterColumns(filter) {
-  if (filter == null) {
+  const normalizedFilter = normalizeFilterExpression(filter);
+  if (normalizedFilter == null) {
     return [];
   }
-
-  if (isStructuredExpression(filter)) {
-    return getStructuredExpressionColumns(filter);
-  }
-
-  switch (filter.op) {
-    case 'and':
-    case 'or':
-      return unique((filter.filters ?? []).flatMap(getFilterColumns));
-    case 'not':
-      return getFilterColumns(filter.filter);
-    case 'eq':
-    case 'ne':
-    case 'gt':
-    case 'gte':
-    case 'lt':
-    case 'lte':
-    case 'in':
-      return [filter.column];
-    default:
-      throw new Error(`Unsupported filter operator: ${filter.op}`);
-  }
+  return getStructuredExpressionColumns(normalizedFilter);
 }
 
 function evaluateStructuredExpression(filter, row) {
@@ -119,42 +219,11 @@ function evaluateStructuredExpression(filter, row) {
 }
 
 function evaluateFilterExpression(filter, row) {
-  if (filter == null) {
+  const normalizedFilter = normalizeFilterExpression(filter);
+  if (normalizedFilter == null) {
     return true;
   }
-
-  if (isStructuredExpression(filter)) {
-    return Boolean(evaluateStructuredExpression(filter, row));
-  }
-
-  switch (filter.op) {
-    case 'and':
-      return (filter.filters ?? []).every((child) =>
-        evaluateFilterExpression(child, row),
-      );
-    case 'or':
-      return (filter.filters ?? []).some((child) =>
-        evaluateFilterExpression(child, row),
-      );
-    case 'not':
-      return !evaluateFilterExpression(filter.filter, row);
-    case 'eq':
-      return row[filter.column] === filter.value;
-    case 'ne':
-      return row[filter.column] !== filter.value;
-    case 'gt':
-      return row[filter.column] > filter.value;
-    case 'gte':
-      return row[filter.column] >= filter.value;
-    case 'lt':
-      return row[filter.column] < filter.value;
-    case 'lte':
-      return row[filter.column] <= filter.value;
-    case 'in':
-      return (filter.values ?? []).includes(row[filter.column]);
-    default:
-      throw new Error(`Unsupported filter operator: ${filter.op}`);
-  }
+  return Boolean(evaluateStructuredExpression(normalizedFilter, row));
 }
 
 function applyFilterToTable(table, filter) {
@@ -162,10 +231,15 @@ function applyFilterToTable(table, filter) {
     return table;
   }
 
+  const normalizedFilter = normalizeFilterExpression(filter);
+  if (normalizedFilter == null) {
+    return table;
+  }
+
   const rows = [];
   for (let rowIndex = 0; rowIndex < table.numRows; rowIndex++) {
     const row = table.get(rowIndex);
-    if (evaluateFilterExpression(filter, row)) {
+    if (evaluateStructuredExpression(normalizedFilter, row)) {
       rows.push(row);
     }
   }
@@ -206,9 +280,10 @@ function prepareReadOptions({
 }) {
   validateSelectedColumns(selectedColumns, schema, propertyNames);
 
+  const normalizedFilter = normalizeFilterExpression(filter);
   const projectionColumns =
     selectedColumns ?? (propertyNames.length > 0 ? propertyNames : null);
-  const filterColumns = getFilterColumns(filter);
+  const filterColumns = getFilterColumns(normalizedFilter);
   validateSelectedColumns(filterColumns, schema, propertyNames);
 
   const readColumns =
@@ -226,5 +301,6 @@ export {
   applyFilterToTable,
   evaluateFilterExpression,
   getFilterColumns,
+  normalizeFilterExpression,
   prepareReadOptions,
 };

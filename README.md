@@ -141,8 +141,8 @@ stable package contract.
   unstable helper APIs
 - compatibility support for the older plain-object filter shape in
   `VerticesCollection.verticesWithProperty(...)` remains available during the
-  port, but the intended stable filtering surface is the C++-mirrored
-  expression-helper API
+  port as an internal compatibility path; the stable filtering surface is the
+  C++-mirrored expression-helper API
 - low-level chunk readers, reader utilities, filesystem helpers, HTTP helpers,
   and general utility modules under `src/core/` are internal implementation
   details rather than package-root public APIs
@@ -294,8 +294,10 @@ constraints are:
   `graphar::_Or(...)` -> `_Or(...)`
   `graphar::_Not(...)` -> `_Not(...)`
 - `VerticesCollection.verticesWithProperty(...)` accepts those C++-style
-  expression helper trees and still accepts the older plain-object filter form
-  for compatibility during the port.
+  expression helper trees as its stable public filtering surface.
+- The older plain-object filter form remains only as an internal compatibility
+  path during the port and should not be treated as part of the stable reader
+  contract.
 - The JS expression helpers intentionally use plain-object expression trees
   instead of porting the C++ `Expression` class hierarchy 1:1. This is a
   deliberate JS-specific adaptation at the representation layer; the goal is

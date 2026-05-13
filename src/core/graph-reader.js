@@ -4,7 +4,11 @@ import {
   AdjListPropertyArrowChunkReader,
   VertexPropertyArrowChunkReader,
 } from './chunk-reader.js';
-import { evaluateFilterExpression, getFilterColumns } from './filter.js';
+import {
+  evaluateFilterExpression,
+  getFilterColumns,
+  normalizeFilterExpression,
+} from './filter.js';
 import { fileSystemFromUriOrPath } from './filesystem.js';
 import {
   getVertexChunkNumFromEdge,
@@ -409,6 +413,7 @@ class VerticesCollection {
     graphInfoOrCollection,
     type = undefined,
   ) {
+    const normalizedFilter = normalizeFilterExpression(filter);
     const vertices = await VerticesCollection.resolveSource(
       graphInfoOrCollection,
       type,
@@ -422,7 +427,9 @@ class VerticesCollection {
 
     const referencedProperties = [
       propertyName,
-      ...getFilterColumns(filter).filter((column) => column !== propertyName),
+      ...getFilterColumns(normalizedFilter).filter(
+        (column) => column !== propertyName,
+      ),
     ];
     for (const column of referencedProperties) {
       const columnExists = vertices.vertexInfo.propertyGroups.some((group) =>
@@ -440,7 +447,7 @@ class VerticesCollection {
       for (const column of referencedProperties) {
         row[column] = await vertex.property(column);
       }
-      if (evaluateFilterExpression(filter, row)) {
+      if (evaluateFilterExpression(normalizedFilter, row)) {
         filteredIds.push(vertex.curOffset);
       }
     }

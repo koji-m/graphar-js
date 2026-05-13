@@ -239,11 +239,7 @@ describe('Graph reader vertex fixture integration', () => {
     );
     const emptyVertices = await VerticesCollection.verticesWithProperty(
       'firstName',
-      {
-        op: 'eq',
-        column: 'firstName',
-        value: 'NoMatch',
-      },
+      _Equal(_Property('firstName'), _Literal('NoMatch')),
       vertices,
     );
 
@@ -606,7 +602,7 @@ describe('Graph reader vertex fixture integration', () => {
     ]);
   });
 
-  it('filters vertices by label and property', async () => {
+  it('filters vertices by label and C++-style property expression', async () => {
     const activeVertices = await VerticesCollection.verticesWithLabel(
       'active',
       graphInfo,
@@ -632,11 +628,7 @@ describe('Graph reader vertex fixture integration', () => {
 
     const namedVertices = await VerticesCollection.verticesWithProperty(
       'firstName',
-      {
-        op: 'eq',
-        column: 'firstName',
-        value: 'Dan',
-      },
+      _Equal(_Property('firstName'), _Literal('Dan')),
       graphInfo,
       'person',
     );
@@ -648,6 +640,25 @@ describe('Graph reader vertex fixture integration', () => {
 
     expect(activeIds).toEqual([100n, 101n, 103n]);
     expect(contractorIds).toEqual([103n]);
+    expect(namedIds).toEqual([103n]);
+  });
+
+  it('keeps the legacy plain-object property filter shape as internal compatibility', async () => {
+    const namedVertices = await VerticesCollection.verticesWithProperty(
+      'firstName',
+      {
+        op: 'eq',
+        column: 'firstName',
+        value: 'Dan',
+      },
+      graphInfo,
+      'person',
+    );
+    const namedIds = [];
+    for (const vertex of await namedVertices.getIterator()) {
+      namedIds.push(await vertex.property('id'));
+    }
+
     expect(namedIds).toEqual([103n]);
   });
 });

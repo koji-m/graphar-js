@@ -15,6 +15,7 @@ import {
 import {
   evaluateFilterExpression,
   getFilterColumns,
+  normalizeFilterExpression,
 } from '../src/core/filter.js';
 
 describe('Expression builders', () => {
@@ -78,6 +79,29 @@ describe('Expression builders', () => {
     );
 
     expect(evaluateFilterExpression(filter, row)).toBe(true);
+  });
+
+  it('normalizes the legacy plain-object filter shape into the stable expression form', () => {
+    expect(
+      normalizeFilterExpression({
+        op: 'eq',
+        column: 'firstName',
+        value: 'Ann',
+      }),
+    ).toEqual(_Equal(_Property('firstName'), _Literal('Ann')));
+
+    expect(
+      normalizeFilterExpression({
+        op: 'in',
+        column: 'id',
+        values: [100n, 101n],
+      }),
+    ).toEqual(
+      _Or(
+        _Equal(_Property('id'), _Literal(100n)),
+        _Equal(_Property('id'), _Literal(101n)),
+      ),
+    );
   });
 
   it('rejects unsupported helper inputs', () => {
